@@ -97,6 +97,7 @@ UI_ENVIRONMENT_OPTIONS = {"Add Environment": None}
 for environment_type in EnvironmentType:
     if environment_type in UNIMPLEMENTED_ENVIRONMENT:
         continue
+
     match environment_type:
         case EnvironmentType.TIME:
             from rattlesnake.user_interface.time_ui import TimeUI
@@ -125,6 +126,9 @@ for environment_type in EnvironmentType:
 
             ENVIRONMENT_UIS[EnvironmentType.RANDOM] = RandomVibrationUI
             UI_ENVIRONMENT_OPTIONS["MIMO Random Vibration"] = EnvironmentType.RANDOM
-        case _:
-            continue
+        case EnvironmentType.READ:
+            from rattlesnake.user_interface.read_ui import ReadUI
+
+            ENVIRONMENT_UIS[EnvironmentType.READ] = ReadUI
+            UI_ENVIRONMENT_OPTIONS["Read Signal"] = EnvironmentType.READ
 # endregion

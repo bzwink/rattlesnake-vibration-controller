@@ -1,8 +1,6 @@
 from rattlesnake.environment.environment_utilities import EnvironmentType
 
-UNIMPLEMENTED_ENVIRONMENT = [
-    EnvironmentType.RANDOM,
-]
+UNIMPLEMENTED_ENVIRONMENT = [EnvironmentType.RANDOM, EnvironmentType.READ]
 
 ENVIRONMENT_COMMANDS = {}
 ENVIRONMENT_METADATA = {}
@@ -78,3 +76,16 @@ for environment_type in EnvironmentType:
             ENVIRONMENT_CLASS[EnvironmentType.RANDOM] = RandomVibrationEnvironment
             ENVIRONMENT_PROCESS[EnvironmentType.RANDOM] = random_vibration_process
             SYSID_ENVIRONMENTS.append(EnvironmentType.RANDOM)
+
+        case EnvironmentType.READ:
+            from rattlesnake.environment.read_environment import (
+                ReadCommands,
+                ReadMetadata,
+                ReadEnvironment,
+                read_process,
+            )
+
+            ENVIRONMENT_COMMANDS[EnvironmentType.READ] = ReadCommands
+            ENVIRONMENT_METADATA[EnvironmentType.READ] = ReadMetadata
+            ENVIRONMENT_CLASS[EnvironmentType.READ] = ReadEnvironment
+            ENVIRONMENT_PROCESS[EnvironmentType.READ] = read_process
