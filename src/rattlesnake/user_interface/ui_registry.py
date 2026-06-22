@@ -125,9 +125,11 @@ for environment_type in EnvironmentType:
 
             ENVIRONMENT_UIS[EnvironmentType.RANDOM] = RandomVibrationUI
             UI_ENVIRONMENT_OPTIONS["MIMO Random Vibration"] = EnvironmentType.RANDOM
-        case EnvironmentType.READ:
-            from rattlesnake.user_interface.read_ui import ReadUI
+        case EnvironmentType.SKELETON:
+            from rattlesnake.user_interface.skeleton_ui import SkeletonUI
 
-            ENVIRONMENT_UIS[EnvironmentType.READ] = ReadUI
-            UI_ENVIRONMENT_OPTIONS["Read Signal"] = EnvironmentType.READ
+            ENVIRONMENT_UIS[EnvironmentType.SKELETON] = SkeletonUI
+            UI_ENVIRONMENT_OPTIONS["Example Skeleton Environment"] = (
+                EnvironmentType.SKELETON
+            )
 # endregion

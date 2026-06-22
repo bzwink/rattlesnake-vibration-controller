@@ -3,7 +3,6 @@ from rattlesnake.environment.environment_utilities import EnvironmentType
 UNIMPLEMENTED_ENVIRONMENT = [
     EnvironmentType.NONE,
     EnvironmentType.READ,
-    EnvironmentType.SKELETON,
     EnvironmentType.SYSID_SKELETON,
 ]
 
@@ -82,15 +81,15 @@ for environment_type in EnvironmentType:
             ENVIRONMENT_PROCESS[EnvironmentType.RANDOM] = random_vibration_process
             SYSID_ENVIRONMENTS.append(EnvironmentType.RANDOM)
 
-        case EnvironmentType.READ:
-            from rattlesnake.environment.read_environment import (
-                ReadCommands,
-                ReadMetadata,
-                ReadEnvironment,
-                read_process,
+        case EnvironmentType.SKELETON:
+            from rattlesnake.environment.skeleton_environment import (
+                SkeletonCommands,
+                SkeletonMetadata,
+                SkeletonEnvironment,
+                skeleton_process,
             )
 
-            ENVIRONMENT_COMMANDS[EnvironmentType.READ] = ReadCommands
-            ENVIRONMENT_METADATA[EnvironmentType.READ] = ReadMetadata
-            ENVIRONMENT_CLASS[EnvironmentType.READ] = ReadEnvironment
-            ENVIRONMENT_PROCESS[EnvironmentType.READ] = read_process
+            ENVIRONMENT_COMMANDS[EnvironmentType.SKELETON] = SkeletonCommands
+            ENVIRONMENT_METADATA[EnvironmentType.SKELETON] = SkeletonMetadata
+            ENVIRONMENT_CLASS[EnvironmentType.SKELETON] = SkeletonEnvironment
+            ENVIRONMENT_PROCESS[EnvironmentType.SKELETON] = skeleton_process

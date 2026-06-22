@@ -2,6 +2,8 @@ import copy
 from enum import Enum
 from typing import List
 import multiprocessing as mp
+import multiprocessing.queues as mpqueue
+import queue as thqueue
 
 import netCDF4 as nc4
 import openpyxl
@@ -92,12 +94,12 @@ class SkeletonMetadata(EnvironmentMetadata):
         for this environment.
     sample_rate : float
         Hardware sample rate in samples per second.
-    example_parameter : str
+    example_window_size : str
         Example environment-specific parameter.
 
     Attributes
     ----------
-    example_parameter : str
+    example_window_size : str
         Example environment-specific parameter.
     """
 
@@ -106,7 +108,7 @@ class SkeletonMetadata(EnvironmentMetadata):
         environment_name: str,
         channel_list_bools: List[bool],
         sample_rate: float,
-        example_parameter: str,
+        example_window_size: str,
     ):
         """
         Initialize the skeleton environment metadata.
@@ -120,7 +122,7 @@ class SkeletonMetadata(EnvironmentMetadata):
             enabled for this environment.
         sample_rate : float
             Hardware sample rate in samples per second.
-        example_parameter : str
+        example_window_size : str
             Example environment-specific parameter.
         """
         super().__init__(
@@ -129,7 +131,7 @@ class SkeletonMetadata(EnvironmentMetadata):
             channel_list_bools,
             sample_rate,
         )
-        self.example_parameter = example_parameter
+        self.example_window_size = example_window_size
 
     # endregion
 
@@ -177,7 +179,7 @@ class SkeletonMetadata(EnvironmentMetadata):
         -----
         This method should not close ``netcdf_group_handle``.
         """
-        netcdf_group_handle.example_parameter = self.example_parameter
+        netcdf_group_handle.example_window_size = self.example_window_size
 
     @classmethod
     def load_metadata_from_netcdf(
@@ -208,13 +210,13 @@ class SkeletonMetadata(EnvironmentMetadata):
         SkeletonMetadata
             Metadata instance reconstructed from the netCDF group.
         """
-        example_parameter = netcdf_group_handle.example_parameter
+        example_window_size = netcdf_group_handle.example_window_size
 
         return cls(
             environment_name,
             channel_list_bools,
             hardware_metadata.sample_rate,
-            example_parameter,
+            example_window_size,
         )
 
     @classmethod
@@ -255,8 +257,8 @@ class SkeletonMetadata(EnvironmentMetadata):
         """
         super().save_metadata_to_worksheet(worksheet)
 
-        if self.example_parameter:
-            worksheet.cell(2, 2, self.example_parameter)
+        if self.example_window_size:
+            worksheet.cell(2, 2, self.example_window_size)
 
     @classmethod
     def load_metadata_from_worksheet(
@@ -297,8 +299,8 @@ class SkeletonMetadata(EnvironmentMetadata):
             name = str(row[0].value).lower().strip().replace(" ", "_")
             value = row[1].value
             match name:
-                case "example_parameter":
-                    example_parameter = str(value)
+                case "example_window_size":
+                    example_window_size = str(value)
                 case _:
                     raise RattlesnakeError(
                         f"{name} does not go with {EnvironmentType.NONE} environment"
@@ -309,7 +311,7 @@ class SkeletonMetadata(EnvironmentMetadata):
             channel_list_bools,
             hardware_metadata.sample_rate,
             hardware_metadata.output_oversample,
-            example_parameter,
+            example_window_size,
         )
 
     # endregion
@@ -349,9 +351,12 @@ class SkeletonInstructions(EnvironmentInstructions):
         example_test_level : float
             Example test-level setting for the environment.
         """
-        super().__init__(environment_name)
+        super().__init__(ENVIRONMENT_TYPE, environment_name)
 
         self.example_test_level = example_test_level
+
+    def validate(self):
+        return super().validate()
 
 
 # endregion
@@ -474,8 +479,8 @@ class SkeletonEnvironment(Environment):
 
     # region Commands
     def start_environment(self, data: SkeletonInstructions):
-        # Store instructions if startup
         if not self.active:
+            # Store instructions
             if data is not None:
                 test_level = data.example_test_level
                 self.test_level = test_level
@@ -483,28 +488,43 @@ class SkeletonEnvironment(Environment):
                     self.environment_name,
                     (SkeletonUICommands.EXAMPLE_UI_SET_TEST_LEVEL, test_level),
                 )
+
+            # Set startup flags
             self.set_active()
             self.shutdown_flag = False
             self.queue_container.gui_update_queue.put(
                 (self.environment_name, (UICommands.ENVIRONMENT_STARTED, None))
             )
 
+            # Start Run Environment loop
             self.environment_command_queue.put(
                 self.environment_name, (SkeletonCommands.EXAMPLE_RUN_ENVIRONMENT, None)
             )
 
     def run_control(self, data: None):
+        # Get data from data in queue and send it to user interface
+        try:
+            acqusition_data, self.last_acqusition = self.data_in_queue.get_nowait()
+            self.gui_update_queue.put(
+                self.environment_name,
+                (SkeletonUICommands.EXAMPLE_UI_SHOW_DATA, acqusition_data),
+            )
+        except (thqueue.Empty, mpqueue.Empty):
+            self.last_acqusition = False
 
+        # If required, put data to data out queue
         if self.data_out_queue.empty():
             output_signal = np.zeros(
                 (self.control_channels, self.hardware_metadata.samples_per_write)
             )
             self.data_out_queue.put((copy.deepcopy(output_signal), self.shutdown_flag))
 
+        # Run control again if not shutting down
         if not self.shutdown_flag:
             self.environment_command_queue.put(
                 self.environment_name, (SkeletonCommands.EXAMPLE_RUN_ENVIRONMENT, None)
             )
+        # Flush queue and don't run control
         else:
             self.queue_container.environment_command_queue.flush(self.environment_name)
             self.queue_container.gui_update_queue.put(
@@ -513,4 +533,45 @@ class SkeletonEnvironment(Environment):
             self.clear_active()
 
     def stop_environment(self, data):
+        # Set shutdown flag so the run_control knows to stop control loop
         self.shutdown_flag = True
+
+
+def skeleton_process(
+    environment_name: str,
+    queue_name: str,
+    input_queue: VerboseMessageQueue,
+    gui_update_queue: mp.Queue,
+    controller_command_queue: VerboseMessageQueue,
+    log_file_queue: mp.Queue,
+    data_in_queue: mp.Queue,
+    data_out_queue: mp.Queue,
+    acquisition_active_event: mp.synchronize.Event,
+    output_active_event: mp.synchronize.Event,
+    active_event: mp.synchronize.Event,
+    ready_event: mp.synchronize.Event,
+    shutdown_event: mp.synchronize.Event,
+    sysid_active_event: mp.synchronize.Event,
+    sysid_stored_event: mp.synchronize.Event,
+    ping_alive_event: mp.synchronize.Event,
+    threaded: bool,
+):
+    queue_container = SkeletonQueues(
+        input_queue,
+        gui_update_queue,
+        controller_command_queue,
+        data_in_queue,
+        data_out_queue,
+        log_file_queue,
+    )
+
+    process_class = SkeletonEnvironment(
+        environment_name,
+        queue_name,
+        queue_container,
+        acquisition_active_event,
+        output_active_event,
+        active_event,
+        ready_event,
+    )
+    process_class.run(shutdown_event)
