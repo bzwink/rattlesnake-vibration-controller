@@ -40,4 +40,6 @@ class EnvironmentType(Enum):
     # NONLINEAR = 5
     MODAL = 6
     READ = 7
+    SKELETON = 8
+    SYSID_SKELETON = 9
     # Add new environment types here

@@ -449,6 +449,9 @@ class Environment(ABC):
         }
         self._acquisition_active_event = acquisition_active_event
         self._output_active_event = output_active_event
+
+        self.hardware_metadata = None
+        self.environment_metadata = None
         # self.set_ready() # Call this at the end of your function
 
     # region Commands

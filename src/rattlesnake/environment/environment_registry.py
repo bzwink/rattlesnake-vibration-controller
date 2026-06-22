@@ -1,7 +1,11 @@
 from rattlesnake.environment.environment_utilities import EnvironmentType
 
-UNIMPLEMENTED_ENVIRONMENT = [EnvironmentType.RANDOM, EnvironmentType.READ]
-UNIMPLEMENTED_ENVIRONMENT = [EnvironmentType.NONE]
+UNIMPLEMENTED_ENVIRONMENT = [
+    EnvironmentType.NONE,
+    EnvironmentType.READ,
+    EnvironmentType.SKELETON,
+    EnvironmentType.SYSID_SKELETON,
+]
 
 ENVIRONMENT_COMMANDS = {}
 ENVIRONMENT_METADATA = {}
