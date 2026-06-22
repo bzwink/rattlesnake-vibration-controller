@@ -21,6 +21,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 import multiprocessing as mp
 import multiprocessing.queues as mpqueue
 import multiprocessing.synchronize  # pylint: disable=unused-import
@@ -62,6 +63,7 @@ class OutputProcess(AbstractMessageProcess):
         queue_container: QueueContainer,
         output_active_event: mp.synchronize.Event,
         ready_event: mp.synchronize.Event,
+        ping_alive_event: mp.synchronize.Event,
     ):
         """
         Constructor for the OutputProcess Class
@@ -94,6 +96,7 @@ class OutputProcess(AbstractMessageProcess):
         self.queue_container = queue_container
         self.startup = True
         self.shutdown_flag = False
+        self.ping_alive_event = ping_alive_event
         # Sampling data
         self.sample_rate = None
         self.write_size = None
@@ -150,50 +153,9 @@ class OutputProcess(AbstractMessageProcess):
             self.hardware.close()
 
         hardware_output_class = HARDWARE_OUTPUT[metadata.hardware_type]
-        match metadata.hardware_type:
-            case HardwareType.NI_DAQMX:
-                self.hardware = hardware_output_class(
-                    metadata.task_trigger,
-                    metadata.output_trigger_generator,
-                )
-            case HardwareType.LAN_XI:
-                # from .lanxi_hardware_multiprocessing import LanXIOutput
-
-                # self.hardware = LanXIOutput(data_acquisition_parameters.extra_parameters["maximum_acquisition_processes"])
-                pass
-            case HardwareType.DP_QUATTRO:
-                # from .data_physics_hardware import DataPhysicsOutput
-
-                # self.hardware = DataPhysicsOutput(self.queue_container.single_process_hardware_queue)
-                pass
-            case HardwareType.DP_900:
-                # from .data_physics_dp900_hardware import DataPhysicsDP900Output
-
-                # self.hardware = DataPhysicsDP900Output(
-                #     self.queue_container.single_process_hardware_queue,
-                # )
-                pass
-            case HardwareType.EXODUS:
-                # from .exodus_modal_solution_hardware import ExodusOutput
-
-                # self.hardware = ExodusOutput(self.queue_container.single_process_hardware_queue)
-                pass
-            case HardwareType.STATE_SPACE:
-                # from .state_space_virtual_hardware import StateSpaceOutput
-
-                # self.hardware = StateSpaceOutput(self.queue_container.single_process_hardware_queue)
-                pass
-            case HardwareType.SDYNPY_SYSTEM:
-                self.hardware = hardware_output_class(
-                    self.queue_container.single_process_hardware_queue
-                )
-            case HardwareType.SDYNPY_FRF:
-                # from .sdynpy_frf_virtual_hardware import SDynPyFRFOutput
-
-                # self.hardware = SDynPyFRFOutput(self.queue_container.single_process_hardware_queue)
-                pass
-            case _:
-                raise TypeError(f"{metadata.hardware_type} has not been implemented")
+        self.hardware = hardware_output_class(
+            self.ping_alive_event, self.queue_container.single_process_hardware_queue
+        )
         # Initialize hardware and create channels
         self.hardware.initialize_hardware(metadata)
         # Get the environment output channels in reference to all the output channels
@@ -201,7 +163,10 @@ class OutputProcess(AbstractMessageProcess):
             index
             for index, channel in enumerate(metadata.channel_list)
             if (channel.feedback_device is not None)
-            and not (channel.feedback_device.strip() == "")
+            and not (
+                channel.feedback_device.startswith("#")
+                or channel.feedback_device.strip() == ""
+            )
         ]
         self.num_outputs = len(output_indices)
 
@@ -215,7 +180,10 @@ class OutputProcess(AbstractMessageProcess):
             index
             for index, channel in enumerate(self.hardware_metadata.channel_list)
             if (channel.feedback_device is not None)
-            and not (channel.feedback_device.strip() == "")
+            and not (
+                channel.feedback_device.startswith("#")
+                or channel.feedback_device.strip() == ""
+            )
         ]
         self.environment_list = []
         self.environment_output_channels = {}
@@ -233,10 +201,9 @@ class OutputProcess(AbstractMessageProcess):
             self.environment_first_data[queue_name] = False
 
             # Build output mapping dicts
-            environment_channel_indices = metadata.map_channel_indices()
             common_indices, out_inds, _ = np.intersect1d(
                 hardware_output_indices,
-                environment_channel_indices,
+                metadata.channel_indices,
                 return_indices=True,
             )
             self.environment_output_channels[queue_name] = out_inds
@@ -528,6 +495,7 @@ def output_process(
     output_active_event: mp.synchronize.Event,
     ready_event: mp.synchronize.Event,
     shutdown_event: mp.synchronize.Event,
+    ping_alive_event: mp.synchronize.Event,
 ):
     """Function passed to multiprocessing as the output process
 
@@ -546,7 +514,7 @@ def output_process(
     """
 
     output_instance = OutputProcess(
-        TASK_NAME, queue_container, output_active_event, ready_event
+        TASK_NAME, queue_container, output_active_event, ready_event, ping_alive_event
     )
 
     output_instance.run(shutdown_event)

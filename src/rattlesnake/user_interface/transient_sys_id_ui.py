@@ -298,7 +298,7 @@ class TransientUI(SysIdEnvironmentUI):
                 f"Control function has not been loaded for {self.environment_name}"
             )
         self.system_id_widget.samplesPerFrameSpinBox.setMaximum(
-            self.specification_signal.shape[-1]
+            self.environment_metadata.control_signal.shape[-1]
         )
         for widget in [
             self.prediction_widget.response_selector,
@@ -451,7 +451,7 @@ class TransientUI(SysIdEnvironmentUI):
 
         # Basic numeric and UI values
         self.definition_widget.sample_rate_display.setValue(metadata.sample_rate)
-        self.definition_widget.ramp_selector.setValue(metadata.ramp_time)
+        self.definition_widget.ramp_selector.setValue(metadata.test_level_ramp_time)
 
         # Python Control Module Logic
         if metadata.control_python_script:
@@ -494,6 +494,10 @@ class TransientUI(SysIdEnvironmentUI):
             if item:
                 item.setCheckState(Qt.Checked)
 
+        self.specification_signal = metadata.control_signal
+        self.setup_specification_table()
+        self.show_signal()
+
     def get_environment_instructions(self):
         test_level = self.run_widget.test_level_selector.value()
         repeat = self.run_widget.repeat_signal_checkbox.isChecked()
@@ -504,6 +508,7 @@ class TransientUI(SysIdEnvironmentUI):
     def set_environment_instructions(self, instructions):
         self.run_widget.test_level_selector.setValue(instructions.test_level)
         self.run_widget.repeat_signal_checkbox.setChecked(instructions.repeat)
+        super().set_environment_instructions(instructions)
 
     def set_parameters_from_template(self, worksheet):
         self.definition_widget.ramp_selector.setValue(float(worksheet.cell(3, 2).value))
@@ -521,7 +526,10 @@ class TransientUI(SysIdEnvironmentUI):
         column_index = 2
         while True:
             value = worksheet.cell(7, column_index).value
-            if value is None or (isinstance(value, str) and value.strip() == ""):
+            if value is None or (
+                isinstance(value, str)
+                and (value.startswith("#") or value.strip() == "")
+            ):
                 break
             item = self.definition_widget.control_channels_selector.item(int(value) - 1)
             item.setCheckState(Qt.Checked)
@@ -618,7 +626,13 @@ class TransientUI(SysIdEnvironmentUI):
             while True:
                 if worksheet.cell(output_transform_row + i, 2).value is None or (
                     isinstance(worksheet.cell(output_transform_row + i, 2).value, str)
-                    and worksheet.cell(output_transform_row + i, 2).value.strip() == ""
+                    and (
+                        worksheet.cell(output_transform_row + i, 2).value.startswith(
+                            "#"
+                        )
+                        or worksheet.cell(output_transform_row + i, 2).value.strip()
+                        == ""
+                    )
                 ):
                     break
                 output_transformation.append([])
@@ -757,7 +771,7 @@ class TransientUI(SysIdEnvironmentUI):
     ):
         """Defines the transformation matrices using the dialog box"""
         if dialog:
-            (response_transformation, output_transformation, result) = (
+            response_transformation, output_transformation, result = (
                 TransformationMatrixWindow.define_transformation_matrices(
                     self.response_transformation_matrix,
                     self.definition_widget.control_channels_display.value(),
@@ -1335,11 +1349,11 @@ class TransientUI(SysIdEnvironmentUI):
         """Updates the test level based on a profile event"""
         self.run_widget.test_level_selector.setValue(int(test_level))
 
-    def set_repeat_from_profile(self, data):  # pylint: disable=unused-argument
+    def set_repeat_from_profile(self, data=None):  # pylint: disable=unused-argument
         """Sets whether or not to repeat the signal based on profile events"""
         self.run_widget.repeat_signal_checkbox.setChecked(True)
 
-    def set_norepeat_from_profile(self, data):  # pylint: disable=unused-argument
+    def set_norepeat_from_profile(self, data=None):  # pylint: disable=unused-argument
         """Sets whether or not to repeat the signal based on profile events"""
         self.run_widget.repeat_signal_checkbox.setChecked(False)
 
@@ -1476,7 +1490,7 @@ class TransientUI(SysIdEnvironmentUI):
                 if self.interactive_control_law_widget is not None:
                     self.interactive_control_law_widget.update_ui_control(data)
             case TransientCommands.SET_TEST_LEVEL:
-                self.change_test_level_from_profile()
+                self.change_test_level_from_profile(data)
             case TransientCommands.SET_REPEAT:
                 self.set_repeat_from_profile()
             case TransientCommands.SET_NO_REPEAT:

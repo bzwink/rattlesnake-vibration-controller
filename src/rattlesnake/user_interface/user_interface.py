@@ -67,6 +67,9 @@ from rattlesnake.user_interface.ui_utilities import (
     ChannelMonitor,
     IPAddress,
     IPAddressManager,
+    HardwareAssistModules,
+    EditableCombobox,
+    EditableSpinBox,
 )
 from rattlesnake.user_interface.ui_registry import (
     UI_HARDWARE_OPTIONS,
@@ -75,6 +78,7 @@ from rattlesnake.user_interface.ui_registry import (
     ENVIRONMENT_UIS,
     UI_ENVIRONMENT_OPTIONS,
 )
+from rattlesnake.environment.environment_registry import SYSID_ENVIRONMENTS
 
 # region Defaults
 # pyqtgraph.setConfigOption('leftButtonPan',False)
@@ -116,7 +120,6 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         # Communication objects
         self.rattlesnake = rattlesnake
-        self.rattlesnake.clear_blocking()
         self.environment_uis = {}
         self.profile_table_list = []
         self.profile_timer_list = []
@@ -132,6 +135,7 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         # Storage properties
         self.hardware_file = None
+        self.lanxi_ip_addresses = []
 
         # Complete UI layout
         self.connect_callbacks()
@@ -142,6 +146,9 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         # Show UI
         self.show()
+
+        # Tell Rattlesnake it now has a gui
+        self.gui_update_queue.put((UICommands.GUI_SETUP_FINISHED, None))
 
     def complete_ui(self):
         """
@@ -154,7 +161,6 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
             self.rattlesnake_tabs.setTabEnabled(i, False)
         self.rattlesnake_tabs.tabBar().setTabVisible(2, False)
         self.rattlesnake_tabs.tabBar().setTabVisible(3, False)
-        self.channel_monitor_button.setVisible(False)
         # Set icons and window
         icon = QtGui.QIcon("logo/Rattlesnake_Icon.png")
         self.tray_icon = QtWidgets.QSystemTrayIcon(self)
@@ -181,7 +187,7 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
         available_hardware = UI_HARDWARE_OPTIONS.keys()
         self.hardware_widgets = {
             "sample_rate": [self.sample_rate_label, self.sample_rate_selector],
-            "lanxi_ip": [self.lanxi_ip_address_button],
+            "lanxi_ip": [self.lanxi_ip_checkbox, self.lanxi_ip_address_button],
             "lanxi_sample_rate": [self.lanxi_sample_rate_selector],
             "buffer_size": [self.buffer_size_label, self.buffer_size_selector],
             "lanxi_processes": [
@@ -253,9 +259,9 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
             self.load_channel_table_from_file
         )
         self.save_channel_table_button.clicked.connect(self.save_channel_table_to_file)
-        # self.assist_channel_table_checkbox.stateChanged.connect(
-        #     self.assist_channel_table_init
-        # )
+        self.assist_channel_table_checkbox.stateChanged.connect(
+            self.assist_channel_table_init
+        )
         # Copy
         self.channel_table_action_copy = QtWidgets.QAction("Copy", self.channel_table)
         self.channel_table_action_copy.setShortcut("Ctrl+C")
@@ -417,6 +423,7 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
         self.event_watcher = EventWatcher(
             ready_event_list,
             active_event_list,
+            self.rattlesnake.event_container.ping_alive_event,
             active_event_check=active_event_check,
             timeout=timeout,
         )
@@ -480,6 +487,8 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
                 self.rattlesnake_tabs.setCurrentIndex(data)
             case UICommands.DISABLE_TAB:
                 self.rattlesnake_tabs.setTabEnabled(data, False)
+            case UICommands.GUI_SETUP_FINISHED:
+                self.rattlesnake.setup_gui()
             case _:
                 widget = getattr(self, command)
                 if isinstance(widget, QtWidgets.QDoubleSpinBox):
@@ -550,15 +559,19 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
                 self.load_ui_from_hardware()
                 self.load_ui_from_environments()
                 # Enable next tab (sysid/profile)
-                self.rattlesnake_tabs.setTabEnabled(4, True)
                 if self.has_system_id:
+                    # There is an edge case that helps us here: If the engine has had a system id loaded to it,
+                    # the abstract sys id data process will put the system id completed command to the ui gui
+                    # queue which is processed in order when the UI launches, therefore enabling the next tabs
                     self.rattlesnake_tabs.setTabEnabled(2, True)
                     self.rattlesnake_tabs.setCurrentIndex(2)
                 else:
+                    self.rattlesnake_tabs.setTabEnabled(4, True)
                     self.rattlesnake_tabs.setCurrentIndex(4)
                 if has_profile:
                     self.load_ui_from_profile()
-                    self.initialize_profile()
+                    if not self.has_system_id:
+                        self.initialize_profile()
                 if has_streamed:
                     self.load_ui_from_stream_metadata()
             case RattlesnakeState.SYS_ID_ACTIVE:
@@ -569,23 +582,33 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
                 self.rattlesnake_tabs.setCurrentIndex(2)
                 if has_profile:
                     self.load_ui_from_profile()
-                    self.initialize_profile()
                 if has_streamed:
                     self.load_ui_from_stream_metadata()
             case RattlesnakeState.HARDWARE_ACTIVE:
                 self.load_ui_from_hardware()
                 self.load_ui_from_environments()
+                if self.has_system_id:
+                    self.rattlesnake_tabs.setTabEnabled(2, True)
+                if self.has_test_pred:
+                    self.rattlesnake_tabs.setTabEnabled(3, True)
+                self.rattlesnake_tabs.setTabEnabled(4, True)
                 if has_profile:
                     self.load_ui_from_profile()
-                    self.initialize_profile()
+                self.initialize_profile()
                 self.load_ui_from_stream_metadata()
                 self.display_acquisition_started()
                 self.rattlesnake_tabs.setCurrentIndex(5)
             case RattlesnakeState.ENVIRONMENT_ACTIVE:
                 self.load_ui_from_hardware()
                 self.load_ui_from_environments()
+                if self.has_system_id:
+                    self.rattlesnake_tabs.setTabEnabled(2, True)
+                if self.has_test_pred:
+                    self.rattlesnake_tabs.setTabEnabled(3, True)
+                self.rattlesnake_tabs.setTabEnabled(4, True)
                 if has_profile:
                     self.load_ui_from_profile()
+                self.initialize_profile()
                 self.load_ui_from_stream_metadata()
                 self.display_acquisition_started()
                 self.rattlesnake_tabs.setCurrentIndex(5)
@@ -627,9 +650,85 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
         self.add_empty_channel_table_rows()
 
         match hardware_metadata.hardware_type:
+            case HardwareType.NI_DAQMX:
+                self.hardware_selector.blockSignals(True)
+                self.hardware_selector.setCurrentText("NI DAQmx")
+                self.hardware_selector.blockSignals(False)
+                self.update_hardware_widget_visibility()
+                self.sample_rate_selector.setValue(hardware_metadata.sample_rate)
+                self.buffer_size_selector.setValue(hardware_metadata.time_per_read)
+                self.task_trigger_selector.setCurrentIndex(
+                    hardware_metadata.task_trigger
+                )
+                self.trigger_output_selector.setText(
+                    hardware_metadata.output_trigger_generator
+                )
+            case HardwareType.LAN_XI:
+                self.hardware_selector.blockSignals(True)
+                self.hardware_selector.setCurrentText("HBK LAN-XI")
+                self.hardware_selector.blockSignals(False)
+                self.update_hardware_widget_visibility()
+                self.buffer_size_selector.setValue(hardware_metadata.time_per_read)
+                lanxi_sample_rate_index = int(
+                    np.log2(hardware_metadata.sample_rate // 4096)
+                )
+                self.lanxi_sample_rate_selector.setCurrentIndex(lanxi_sample_rate_index)
+                self.lanxi_maximum_acquisition_processes_selector.setValue(
+                    hardware_metadata.maximum_acquisition_processes
+                )
+            case HardwareType.DP_QUATTRO:
+                self.hardware_selector.blockSignals(True)
+                self.hardware_selector.setCurrentText("Data Physics Quattro")
+                self.hardware_selector.blockSignals(False)
+                self.update_hardware_widget_visibility()
+                self.sample_rate_selector.setValue(hardware_metadata.sample_rate)
+                self.buffer_size_selector.setValue(hardware_metadata.time_per_read)
+                self.hardware_file = hardware_metadata.hardware_file
+            case HardwareType.DP_900:
+                self.hardware_selector.blockSignals(True)
+                self.hardware_selector.setCurrentText("Data Physics 900")
+                self.hardware_selector.blockSignals(False)
+                self.update_hardware_widget_visibility()
+                self.sample_rate_selector.setValue(hardware_metadata.sample_rate)
+                self.buffer_size_selector.setValue(hardware_metadata.time_per_read)
+                self.hardware_file = hardware_metadata.hardware_file
+            case HardwareType.EXODUS:
+                self.hardware_selector.blockSignals(True)
+                self.hardware_selector.setCurrentText("Exodus Modal Solution...")
+                self.hardware_selector.blockSignals(False)
+                self.update_hardware_widget_visibility()
+                self.hardware_file = hardware_metadata.hardware_file
+                self.sample_rate_selector.setValue(hardware_metadata.sample_rate)
+                self.buffer_size_selector.setValue(hardware_metadata.time_per_read)
+                self.integration_oversample_selector.setValue(
+                    hardware_metadata.output_oversample
+                )
+                self.damping_ratio_selector.setValue(hardware_metadata.damping_ratio)
+            case HardwareType.STATE_SPACE:
+                self.hardware_selector.blockSignals(True)
+                self.hardware_selector.setCurrentText("State Space Integration...")
+                self.hardware_selector.blockSignals(False)
+                self.update_hardware_widget_visibility()
+                self.hardware_file = hardware_metadata.hardware_file
+                self.sample_rate_selector.setValue(hardware_metadata.sample_rate)
+                self.buffer_size_selector.setValue(hardware_metadata.time_per_read)
+                self.integration_oversample_selector.setValue(
+                    hardware_metadata.output_oversample
+                )
             case HardwareType.SDYNPY_SYSTEM:
                 self.hardware_selector.blockSignals(True)
                 self.hardware_selector.setCurrentText("SDynPy System Integration...")
+                self.hardware_selector.blockSignals(False)
+                self.update_hardware_widget_visibility()
+                self.hardware_file = hardware_metadata.hardware_file
+                self.sample_rate_selector.setValue(hardware_metadata.sample_rate)
+                self.buffer_size_selector.setValue(hardware_metadata.time_per_read)
+                self.integration_oversample_selector.setValue(
+                    hardware_metadata.output_oversample
+                )
+            case HardwareType.SDYNPY_FRF:
+                self.hardware_selector.blockSignals(True)
+                self.hardware_selector.setCurrentText("SDynPy FRF Convolution...")
                 self.hardware_selector.blockSignals(False)
                 self.update_hardware_widget_visibility()
                 self.hardware_file = hardware_metadata.hardware_file
@@ -673,6 +772,13 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
             self.environment_uis[environment_name].initialize_environment(
                 environment_metadata
             )
+            if (
+                environment_type in SYSID_ENVIRONMENTS
+                and environment_metadata.sysid_metadata is not None
+            ):
+                self.environment_uis[environment_name].set_sysid_metadata(
+                    environment_metadata.sysid_metadata
+                )
 
         self.update_environment_tabs()
         streaming_environment_items = [""] + list(self.environment_uis.keys())
@@ -767,15 +873,24 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         try:
             # Hardware
+            hardware_text = self.hardware_selector.currentText()
             hardware_metadata = self.get_hardware_metadata_no_channels()
             channel_list = self.get_channel_list()
             hardware_metadata.channel_list = channel_list
 
             # Environments
-            environment_metadata_list = []
+            environment_metadata_dict = {}
             for environment_ui in self.environment_uis.values():
-                metadata = environment_ui.get_environment_metadata(channel_list)
-                environment_metadata_list.append(metadata)
+                if environment_ui.hardware_metadata is None:
+                    # This is a bad workaround to get blank templates.
+                    environment_metadata_dict[environment_ui.environment_name] = (
+                        environment_ui.environment_type
+                    )
+                else:
+                    metadata = environment_ui.get_environment_metadata(channel_list)
+                    environment_metadata_dict[environment_ui.environment_name] = (
+                        metadata
+                    )
 
             # Profiles
             profile_event_list = []
@@ -799,7 +914,7 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
             save_rattlesnake_to_workbook(
                 workbook,
                 hardware_metadata,
-                environment_metadata_list,
+                environment_metadata_dict,
                 profile_event_list,
             )
             workbook.save(filepath)
@@ -1094,7 +1209,9 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
         hardware_type = UI_HARDWARE_OPTIONS[hardware_text]
         if hardware_type in UI_ASK_FOR_FILE:
             filename, file_filter = QtWidgets.QFileDialog.getOpenFileName(
-                self, "Load a SDynPy System", filter="Numpy File (*.npz)"
+                self,
+                "Load a System File",
+                filter="Supported Files (*.npz *.mat *.exo);;Numpy File (*.npz);;Matlab File (*.mat);;Exodus File (*.exo),",
             )
             # Check for 'cancel' dialog
             if filename == "" or filename is None:
@@ -1137,7 +1254,11 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         # Loop through table devices and append unique IP addresses
         for row in range(self.channel_table.rowCount()):
-            table_text = self.channel_table.item(row, 10).text()
+            table_item = self.channel_table.item(row, 10)
+            if table_item is None:
+                table_text = ""
+            else:
+                table_text = table_item.text()
             if re.search(ipv4_pattern, table_text) is not None:
                 if table_text not in ipv4:
                     stored_addresses.append(IPAddress(None, table_text, None))
@@ -1152,10 +1273,115 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
                     bknum.append(table_text)
 
         ip_manager = IPAddressManager(stored_addresses)
-        # TODO: I don't think the check for equality does anything here.  Show isn't blocking, so
-        # the dialog wouldn't have been accepted yet.
-        # ok_clicked = ip_manager.show() == QtWidgets.QDialog.Accepted
-        ip_manager.show()
+        ip_manager.exec()
+        self.lanxi_ip_addresses = ip_manager.ip_addresses
+
+    def assist_channel_table_init(self, assist_checked, edit_rows=[]):
+        # Clear out old widgets:
+        num_rows = self.channel_table.rowCount()
+        num_cols = self.channel_table.columnCount()
+        if not edit_rows:
+            edit_rows = range(num_rows)
+
+        for row in edit_rows:
+            for col in range(num_cols):
+                self.channel_table.removeCellWidget(row, col)
+
+        # Should be fine
+        if not assist_checked:
+            return
+
+        # Build new modules
+        hardware_metadata = self.get_hardware_metadata_no_channels()
+        channel_list = self.get_channel_list()
+        hardware_modules = hardware_metadata.assist_mode_modules
+        for row, channel in enumerate(channel_list):
+            if row in edit_rows:
+                channel_dict = hardware_metadata.valid_channel_dict(channel)
+                for col, (attr, module) in enumerate(hardware_modules.items()):
+                    attr_value = getattr(channel, attr)
+                    valid_values = channel_dict[attr]
+                    match module:
+                        case HardwareAssistModules.NONE:
+                            pass
+                        case HardwareAssistModules.COMBOBOX:
+                            combobox = EditableCombobox(valid_values, attr_value)
+                            combobox.currentTextChanged.connect(
+                                lambda text, row=row, col=col: self.assist_channel_table_update(
+                                    text, row, col
+                                )
+                            )
+                            self.channel_table.setCellWidget(row, col, combobox)
+                        case HardwareAssistModules.SPINBOX:
+                            spinbox = EditableSpinBox(
+                                valid_values[0], valid_values[1], attr_value
+                            )
+                            spinbox.stringValueChanged.connect(
+                                lambda text, row=row, col=col: self.assist_channel_table_update(
+                                    text, row, col
+                                )
+                            )
+                            self.channel_table.setCellWidget(row, col, spinbox)
+
+        # Fill out empty modules
+        empty_channel_dict = hardware_metadata.valid_channel_dict(Channel())
+        for row in range(len(channel_list), num_rows):
+            if row in edit_rows:
+                for col, (attr, module) in enumerate(hardware_modules.items()):
+                    valid_values = empty_channel_dict[attr]
+                    match module:
+                        case HardwareAssistModules.NONE:
+                            pass
+                        case HardwareAssistModules.COMBOBOX:
+                            combobox = EditableCombobox(valid_values)
+                            combobox.currentTextChanged.connect(
+                                lambda text, row=row, col=col: self.assist_channel_table_update(
+                                    text, row, col
+                                )
+                            )
+                            self.channel_table.setCellWidget(row, col, combobox)
+                        case HardwareAssistModules.SPINBOX:
+                            spinbox = EditableSpinBox(valid_values[0], valid_values[1])
+                            spinbox.stringValueChanged.connect(
+                                lambda text, row=row, col=col: self.assist_channel_table_update(
+                                    text, row, col
+                                )
+                            )
+                            self.channel_table.setCellWidget(row, col, spinbox)
+
+    def assist_channel_table_update(self, text, row, col):
+        # Assign text to channel table item
+        item = QtWidgets.QTableWidgetItem(text)
+        self.channel_table.setItem(row, col, item)
+
+        hardware_metadata = self.get_hardware_metadata_no_channels()
+        channel = self.get_channel(row)
+        hardware_modules = hardware_metadata.assist_mode_modules
+        channel_dict = hardware_metadata.valid_channel_dict(channel)
+        for col, (attr, module) in enumerate(hardware_modules.items()):
+            attr_value = getattr(channel, attr)
+            valid_values = channel_dict[attr]
+            match module:
+                case HardwareAssistModules.NONE:
+                    pass
+                case HardwareAssistModules.COMBOBOX:
+                    combobox = EditableCombobox(valid_values, attr_value)
+                    combobox.currentTextChanged.connect(
+                        lambda text, row=row, col=col: self.assist_channel_table_update(
+                            text, row, col
+                        )
+                    )
+                    self.channel_table.setCellWidget(row, col, combobox)
+                case HardwareAssistModules.SPINBOX:
+                    spinbox = EditableSpinBox(
+                        valid_values[0], valid_values[1], attr_value
+                    )
+                    spinbox.stringValueChanged.connect(
+                        lambda text, row=row, col=col: self.assist_channel_table_update(
+                            text, row, col
+                        )
+                    )
+                    self.channel_table.setCellWidget(row, col, spinbox)
 
     # def sample_rate_update(self):
     #     """Updates the sample rate selector based on valid available rates"""
@@ -1242,6 +1468,13 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         # Prevent user from initializing multiple times
         self.initialize_hardware_button.setEnabled(False)
+        if self.rattlesnake.state in (
+            RattlesnakeState.INIT,
+            RattlesnakeState.HARDWARE_STORE,
+            RattlesnakeState.ENVIRONMENT_STORE,
+        ):
+            for ind in range(5):
+                self.rattlesnake_tabs.setTabEnabled(ind + 1, False)
 
         try:
             # Build hardware metadata
@@ -1320,32 +1553,110 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         hardware_text = self.hardware_selector.currentText()
         hardware_type = UI_HARDWARE_OPTIONS[hardware_text]
-        if hardware_type == "Select":
-            return None
-
         channel_list = []
         hardware_metadata_class = HARDWARE_METADATA[hardware_type]
         match hardware_type:
-            case HardwareType.NI_DAQMX:
-                return
-
+            case HardwareType.NONE:
                 sample_rate = self.sample_rate_selector.value()
                 time_per_read = self.buffer_size_selector.value()
                 time_per_write = self.buffer_size_selector.value()
-                task_trigger = self.task_trigger_selector.text()
-                output_trigger_generator = self.trigger_output_selector.value()
-                hardware_metadata = hardware_metadata_class()
+                return hardware_metadata_class(
+                    HardwareType.NONE,
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                )
+            case HardwareType.NI_DAQMX:
+                sample_rate = self.sample_rate_selector.value()
+                time_per_read = self.buffer_size_selector.value()
+                time_per_write = self.buffer_size_selector.value()
+                task_trigger = self.task_trigger_selector.currentIndex()
+                output_trigger_generator = self.trigger_output_selector.text()
+                return hardware_metadata_class(
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                    task_trigger,
+                    output_trigger_generator,
+                )
 
             case HardwareType.LAN_XI:
-                return
+                sample_rate = 2 ** self.lanxi_sample_rate_selector.currentIndex() * 4096
+                time_per_read = self.buffer_size_selector.value()
+                time_per_write = self.buffer_size_selector.value()
+                output_oversample = 16384 // sample_rate
+                use_ipv6 = self.lanxi_ip_checkbox.isChecked()
+                if output_oversample == 0:
+                    output_oversample = 1
+                maximum_acquisition_processes = (
+                    self.lanxi_maximum_acquisition_processes_selector.value()
+                )
+                return hardware_metadata_class(
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                    output_oversample,
+                    maximum_acquisition_processes,
+                    self.lanxi_ip_addresses,
+                    use_ipv6,
+                )
             case HardwareType.DP_QUATTRO:
-                return
+                sample_rate = self.sample_rate_selector.value()
+                time_per_read = self.buffer_size_selector.value()
+                time_per_write = self.buffer_size_selector.value()
+                hardware_file = self.hardware_file
+                return hardware_metadata_class(
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                    hardware_file,
+                )
             case HardwareType.DP_900:
-                return
+                sample_rate = self.sample_rate_selector.value()
+                time_per_read = self.buffer_size_selector.value()
+                time_per_write = self.buffer_size_selector.value()
+                hardware_file = self.hardware_file
+                return hardware_metadata_class(
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                    hardware_file,
+                )
             case HardwareType.EXODUS:
-                return
+                sample_rate = self.sample_rate_selector.value()
+                time_per_read = self.buffer_size_selector.value()
+                time_per_write = self.buffer_size_selector.value()
+                output_oversample = self.integration_oversample_selector.value()
+                damping_ratio = self.damping_ratio_selector.value()
+                hardware_file = self.hardware_file
+                return hardware_metadata_class(
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                    output_oversample,
+                    hardware_file,
+                    damping_ratio,
+                )
             case HardwareType.STATE_SPACE:
-                return
+                sample_rate = self.sample_rate_selector.value()
+                time_per_read = self.buffer_size_selector.value()
+                time_per_write = self.buffer_size_selector.value()
+                output_oversample = self.integration_oversample_selector.value()
+                hardware_file = self.hardware_file
+                return hardware_metadata_class(
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                    output_oversample,
+                    hardware_file,
+                )
             case HardwareType.SDYNPY_SYSTEM:
                 sample_rate = self.sample_rate_selector.value()
                 time_per_read = self.buffer_size_selector.value()
@@ -1361,7 +1672,17 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
                     hardware_file,
                 )
             case HardwareType.SDYNPY_FRF:
-                return
+                sample_rate = self.sample_rate_selector.value()
+                time_per_read = self.buffer_size_selector.value()
+                time_per_write = self.buffer_size_selector.value()
+                hardware_file = self.hardware_file
+                return hardware_metadata_class(
+                    channel_list,
+                    sample_rate,
+                    time_per_read,
+                    time_per_write,
+                    hardware_file,
+                )
             case _:
                 return None
 
@@ -1555,6 +1876,12 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
 
         # Prevent user from initializing multiple times
         self.initialize_environments_button.setEnabled(False)
+        if self.rattlesnake.state in (
+            RattlesnakeState.HARDWARE_STORE,
+            RattlesnakeState.ENVIRONMENT_STORE,
+        ):
+            for ind in range(4):
+                self.rattlesnake_tabs.setTabEnabled(ind + 2, False)
 
         try:
             # Build environment metadata list
@@ -1660,12 +1987,15 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
         """
         Shows the channel monitor window.
         """
+        if isinstance(self.rattlesnake.hardware_metadata, HardwareMetadata):
+            hardware_metadata = self.rattlesnake.hardware_metadata
+        else:
+            hardware_metadata = self.get_hardware_metadata_no_channels()
+
         if (self.channel_monitor_window is None) or (
             not self.channel_monitor_window.isVisible()
         ):
-            self.channel_monitor_window = ChannelMonitor(
-                None, self.global_daq_parameters
-            )
+            self.channel_monitor_window = ChannelMonitor(None, hardware_metadata)
         else:
             pass  # TODO Need to raise the window to the front, or close and reopen
 
@@ -1905,7 +2235,9 @@ class RattlesnakeUI(QtWidgets.QMainWindow):
             profile_event_list.append(event)
 
         workbook = openpyxl.Workbook()
-        save_profile_to_workbook(workbook, profile_event_list)
+        profile_sheet = workbook.active
+        profile_sheet.title = "Test Profile"
+        save_profile_to_workbook(profile_sheet, profile_event_list)
         workbook.save(filepath)
 
     def add_profile_event(self, clicked=None):

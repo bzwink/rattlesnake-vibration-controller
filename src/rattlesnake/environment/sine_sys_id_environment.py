@@ -43,7 +43,6 @@ from rattlesnake.utilities import (
     scale2db,
     wrap,
     db2scale,
-    read_transformation_matrix_from_worksheet,
 )
 from rattlesnake.hardware.abstract_hardware import HardwareMetadata
 from rattlesnake.environment.abstract_environment import (
@@ -592,9 +591,9 @@ class SineMetadata(SysIdEnvironmentMetadata):
             sysid_metadata=sysid_metadata,
         )
 
-    @staticmethod
-    def create_blank_worksheet_template(worksheet):
-        worksheet.cell(1, 1, "Control Type")
+    @classmethod
+    def create_blank_worksheet_template(cls, worksheet):
+        super().create_blank_worksheet_template(worksheet)
         worksheet.cell(1, 2, "Sine")
         worksheet.cell(
             1,
@@ -680,15 +679,15 @@ class SineMetadata(SysIdEnvironmentMetadata):
         worksheet.cell(18, 1, "Control Channels (1-based):")
         worksheet.cell(18, 3, "# List of channels, one per cell on this row")
         SysIdMetadata.create_blank_worksheet_template(worksheet, start_row=19)
-        worksheet.cell(33, 1, "Specification File:")
+        worksheet.cell(35, 1, "Specification File:")
         worksheet.cell(
-            33,
+            35,
             3,
             "# Path to the file containing the Specification. Can specify multiple by using multiple columns",
         )
-        worksheet.cell(34, 1, "Response Transformation Matrix:")
+        worksheet.cell(36, 1, "Response Transformation Matrix:")
         worksheet.cell(
-            34,
+            36,
             2,
             (
                 "# Transformation matrix to apply to the response channels.  Type None if there is "
@@ -697,9 +696,9 @@ class SineMetadata(SysIdEnvironmentMetadata):
                 "the number of physical control channels."
             ),
         )
-        worksheet.cell(35, 1, "Output Transformation Matrix:")
+        worksheet.cell(37, 1, "Output Transformation Matrix:")
         worksheet.cell(
-            35,
+            37,
             2,
             "# Transformation matrix to apply to the outputs.  Type None if there is none.  "
             "Otherwise, make this a 2D array in the spreadsheet.  The number of columns should be "
@@ -748,28 +747,12 @@ class SineMetadata(SysIdEnvironmentMetadata):
                 col_idx = idx + 2
                 worksheet.cell(18, col_idx, channel_ind + 1)
         self.sysid_metadata.save_metadata_to_worksheet(worksheet, start_row=19)
-        response_row = 34
-        output_row = 35
-        if self.response_transformation_matrix is not None:
-            worksheet.cell(35, 1, None)
-            worksheet.cell(35, 2, None)
-            for i, row in enumerate(self.response_transformation_matrix):
-                for j, value in enumerate(row):
-                    worksheet.cell(i + response_row, j + 2, value)
-            # Shift output transfomation matrix down
-            output_row = i + 1
-            worksheet.cell(i + 1, 1, "Output Transformation Matrix:")
-            worksheet.cell(
-                i + 1,
-                2,
-                "# Transformation matrix to apply to the outputs.  Type None if there is none.  "
-                "Otherwise, make this a 2D array in the spreadsheet.  The number of columns should be "
-                "the number of physical output channels in the environment.",
-            )
-        if self.response_transformation_matrix is not None:
-            for i, row in enumerate(self.response_transformation_matrix):
-                for j, value in enumerate(row):
-                    worksheet.cell(i + output_row, j + 2, value)
+        self.save_sysid_matrix_to_worksheet(
+            worksheet,
+            self.response_transformation_matrix,
+            self.reference_transformation_matrix,
+            start_row=36,
+        )
 
     @classmethod
     def load_metadata_from_worksheet(
@@ -828,7 +811,8 @@ class SineMetadata(SysIdEnvironmentMetadata):
         while True:
             channel_ind = worksheet.cell(18, column_index).value
             if channel_ind is None or (
-                isinstance(channel_ind, str) and channel_ind.strip() == ""
+                isinstance(channel_ind, str)
+                and (channel_ind.startswith("#") or channel_ind.strip() == "")
             ):
                 break
             try:
@@ -839,82 +823,18 @@ class SineMetadata(SysIdEnvironmentMetadata):
         sysid_metadata = SysIdMetadata.load_metadata_from_worksheet(
             worksheet, hardware_metadata, start_row=19
         )
-
-        # Now we need to find the transformation matrices' sizes
-        start_response_row = 34
-        num_response_row = 1
-        if (
-            isinstance(worksheet.cell(start_response_row, 2).value, str)
-            and worksheet.cell(start_response_row, 2).value.lower() == "none"
-        ):
-            response_transformation_matrix = None
-        elif (
-            worksheet.cell(start_response_row, 2)
-            .value.lower()
-            .startswith("# transformation matrix")
-        ):
-            response_transformation_matrix = None
-        else:
-
-            while True:
-                first_col_value = worksheet.cell(
-                    start_response_row + num_response_row, 2
-                ).value
-                if worksheet.cell(
-                    start_response_row + num_response_row, 1
-                ).value == "Output Transformation Matrix:" or (
-                    first_col_value is None
-                    or (
-                        isinstance(first_col_value, str)
-                        and first_col_value.strip() == ""
-                    )
-                ):
-                    break
-                num_response_row += 1
-            response_transformation_matrix = read_transformation_matrix_from_worksheet(
-                worksheet,
-                start_row=start_response_row,
-                num_rows=num_response_row,
-                start_col=2,
-            )
-        # Output transformation matrix
-        start_output_row = start_response_row + num_response_row
-        num_output_row = 1
-        if (
-            isinstance(worksheet.cell(start_output_row, 2).value, str)
-            and worksheet.cell(start_output_row, 2).value.lower() == "none"
-        ):
-            output_transformation_matrix = None
-        elif (
-            worksheet.cell(start_output_row, 2)
-            .value.lower()
-            .startswith("# transformation matrix")
-        ):
-            output_transformation_matrix = None
-        else:
-            while True:
-                first_col_value = worksheet.cell(
-                    start_output_row + num_output_row, 2
-                ).value
-                if first_col_value is None or (
-                    isinstance(first_col_value, str) and first_col_value.strip() == ""
-                ):
-                    break
-                num_output_row += 1
-            output_transformation_matrix = read_transformation_matrix_from_worksheet(
-                worksheet,
-                start_row=start_output_row,
-                num_rows=num_output_row,
-                start_col=2,
-            )
+        response_transformation_matrix, output_transformation_matrix = (
+            cls.load_sysid_matrix_from_worksheet(worksheet, start_row=36)
+        )
 
         # Specification Files
         specification_files = []
         column_index = 2
         while True:
-            filename = worksheet.cell(33, column_index).value
+            filename = worksheet.cell(35, column_index).value
             if filename is None or (
-                isinstance(filename, str) and filename.strip() == ""
+                isinstance(filename, str)
+                and (filename.startswith("#") or filename.strip() == "")
             ):
                 break
             specification_files.append(str(filename))
@@ -1008,14 +928,20 @@ class SineMetadata(SysIdEnvironmentMetadata):
             isinstance(worksheet.cell(output_transform_row, 2).value, str)
             and worksheet.cell(output_transform_row, 2).value.lower() == "none"
         ):
-            self.output_transformation_matrix = None
+            self.reference_transformation_matrix = None
         else:
             output_transformation = []
             i = 0
             while True:
                 if worksheet.cell(output_transform_row + i, 2).value is None or (
                     isinstance(worksheet.cell(output_transform_row + i, 2).value, str)
-                    and worksheet.cell(output_transform_row + i, 2).value.strip() == ""
+                    and (
+                        worksheet.cell(output_transform_row + i, 2).value.startswith(
+                            "#"
+                        )
+                        or worksheet.cell(output_transform_row + i, 2).value.strip()
+                        == ""
+                    )
                 ):
                     break
                 output_transformation.append([])
@@ -1024,7 +950,7 @@ class SineMetadata(SysIdEnvironmentMetadata):
                         float(worksheet.cell(output_transform_row + i, 2 + j).value)
                     )
                 i += 1
-            self.output_transformation_matrix = np.array(output_transformation)
+            self.reference_transformation_matrix = np.array(output_transformation)
         self.define_transformation_matrices(None, dialog=False)
 
         # Load in the specification
@@ -1275,11 +1201,14 @@ class SineEnvironment(SysIdEnvironment):
         self.control_end_index = None
         self.good_line_threshold = 0.25
 
+        self.set_ready()
+
     # endregion
 
     # region State Sync
     def initialize_hardware(self, hardware_metadata):
-        return super().initialize_hardware(hardware_metadata)
+        super().initialize_hardware(hardware_metadata)
+        self.set_ready()
 
     def initialize_environment(self, environment_metadata: SineMetadata):
         # Check if all specifications are equal
@@ -1429,8 +1358,12 @@ class SineEnvironment(SysIdEnvironment):
         )
         self.log("Done!")
 
+        self.set_ready()
+
     def initialize_sysid(self, sysid_metadata):
-        return super().initialize_sysid(sysid_metadata)
+        super().initialize_sysid(sysid_metadata)
+
+        self.set_ready()
 
     def get_signal_generation_metadata(self):
         """Gets a SignalGenerationMetadata object for the current environment"""
@@ -1996,6 +1929,12 @@ class SineEnvironment(SysIdEnvironment):
             self.control_tones = data.control_tones
             self.control_start_time = data.control_start_time
             self.control_end_time = data.control_end_time
+            self.gui_update_queue.put(
+                (
+                    self.environment_name,
+                    (UICommands.SET_ENVIRONMENT_INSTRUCTIONS, data),
+                )
+            )
             if self.control_tones is not None and len(self.control_tones) == 0:
                 self.control_tones = None
             if self.control_tones is None:
@@ -2669,7 +2608,12 @@ class SineEnvironment(SysIdEnvironment):
         np.savez(filename, **output_dict)
 
     def set_test_level(self, data):
-        print("Cannot set test level during sine environment")
+        if self.active:
+            print("Cannot set test level during sine environment")
+        else:
+            self.gui_update_queue.put(
+                (self.environment_name, (SineCommands.SET_TEST_LEVEL, data))
+            )
 
     # endregion
 
@@ -2710,6 +2654,7 @@ def sine_process(
     shutdown_event: mp.synchronize.Event,
     sysid_active_event: mp.synchronize.Event,
     sysid_stored_event: mp.synchronize.Event,
+    ping_alive_event: mp.synchronize.Event,
     threaded: bool,
 ):
     """A function to be used by multiprocessing to run the Sine environment.  It sets up
@@ -2776,6 +2721,7 @@ def sine_process(
                 queue_container.environment_command_queue,
                 queue_container.gui_update_queue,
                 queue_container.log_file_queue,
+                ping_alive_event,
             ),
         )
         analysis_proc.start()

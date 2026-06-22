@@ -388,21 +388,79 @@ class SysIdEnvironmentUI(EnvironmentUI):
 
     def set_sysid_metadata(self, sysid_metadata: SysIdMetadata):
         """
-        Update the user interface with sysid parameters
+        Update the user interface with sysid parameters.
 
-        This function is called when the Environment parameters are initialized.
-        This function should set up the user interface accordingly.  It must
-        return the parameters class of the environment that inherits from
-        AbstractMetadata.
-
-        Returns
-        -------
-        AbstractMetadata
-            An AbstractMetadata-inheriting object that contains the parameters
-            defining the environment.
-
+        Parameters
+        ----------
+        sysid_metadata : SysIdMetadata
+            Metadata object containing the system identification parameters.
         """
-        pass
+        self.system_id_widget.samplesPerFrameSpinBox.setValue(
+            sysid_metadata.sysid_frame_size
+        )
+
+        averaging_index = self.system_id_widget.averagingTypeComboBox.findText(
+            sysid_metadata.sysid_averaging_type
+        )
+        if averaging_index >= 0:
+            self.system_id_widget.averagingTypeComboBox.setCurrentIndex(averaging_index)
+
+        self.system_id_widget.noiseAveragesSpinBox.setValue(
+            sysid_metadata.sysid_noise_averages
+        )
+        self.system_id_widget.systemIDAveragesSpinBox.setValue(
+            sysid_metadata.sysid_averages
+        )
+        self.system_id_widget.averagingCoefficientDoubleSpinBox.setValue(
+            sysid_metadata.sysid_exponential_averaging_coefficient
+        )
+
+        estimator_index = self.system_id_widget.estimatorComboBox.findText(
+            sysid_metadata.sysid_estimator
+        )
+        if estimator_index >= 0:
+            self.system_id_widget.estimatorComboBox.setCurrentIndex(estimator_index)
+
+        self.system_id_widget.levelDoubleSpinBox.setValue(sysid_metadata.sysid_level)
+        self.system_id_widget.levelRampTimeDoubleSpinBox.setValue(
+            sysid_metadata.sysid_level_ramp_time
+        )
+
+        signal_type_index = self.system_id_widget.signalTypeComboBox.findText(
+            sysid_metadata.sysid_signal_type
+        )
+        if signal_type_index >= 0:
+            self.system_id_widget.signalTypeComboBox.setCurrentIndex(signal_type_index)
+
+        window_index = self.system_id_widget.windowComboBox.findText(
+            sysid_metadata.sysid_window
+        )
+        if window_index >= 0:
+            self.system_id_widget.windowComboBox.setCurrentIndex(window_index)
+
+        self.system_id_widget.overlapDoubleSpinBox.setValue(
+            sysid_metadata.sysid_overlap * 100
+        )
+        self.system_id_widget.onFractionDoubleSpinBox.setValue(
+            sysid_metadata.sysid_burst_on * 100
+        )
+        self.system_id_widget.pretriggerDoubleSpinBox.setValue(
+            sysid_metadata.sysid_pretrigger * 100
+        )
+        self.system_id_widget.rampFractionDoubleSpinBox.setValue(
+            sysid_metadata.sysid_burst_ramp_fraction * 100
+        )
+
+        self.system_id_widget.lowFreqCutoffSpinBox.setValue(
+            sysid_metadata.sysid_low_frequency_cutoff
+        )
+        self.system_id_widget.highFreqCutoffSpinBox.setValue(
+            sysid_metadata.sysid_high_frequency_cutoff
+        )
+
+        self.system_id_widget.transfer_function_stream_file_display.setText(
+            sysid_metadata.stream_file if sysid_metadata.stream_file is not None else ""
+        )
 
     @abstractmethod
     def get_environment_instructions(self):
@@ -410,7 +468,7 @@ class SysIdEnvironmentUI(EnvironmentUI):
 
     @abstractmethod
     def set_environment_instructions(self, instructions):
-        return
+        super().set_environment_instructions(instructions)
 
     # endregion
 
@@ -770,7 +828,7 @@ class SysIdEnvironmentUI(EnvironmentUI):
             return
 
         try:
-            os.remove(filepath)  # The sysid_save only appends to files
+            # os.remove(filepath)  # The sysid_save only appends to files
             self.rattlesnake.save_system_id_to_file(self.environment_name, filepath)
         except Exception as e:
             self.display_error(e)
@@ -817,22 +875,37 @@ class SysIdEnvironmentUI(EnvironmentUI):
                 #     return
 
                 netcdf_handle = netcdf_dataset.groups[self.environment_name]
+                sysid_metadata = SysIdMetadata().load_metadata_from_netcdf(
+                    netcdf_handle, self.hardware_metadata
+                )
                 sysid_data = SysIdDataPackage().load_package_from_netcdf(netcdf_handle)
             case "SDynPy FRF (*.npz)":
                 sdynpy_dict = np.load(filename)
+                sysid_metadata = SysIdMetadata().default_metadata(
+                    self.hardware_metadata.sample_rate
+                )
                 sysid_data = SysIdDataPackage().load_package_from_sdynpy_frf(
                     sdynpy_dict
                 )
             case "Forcefinder SPR (*.npz)":
                 forcefinder_dict = np.load(filename)
+                sysid_metadata = SysIdMetadata().default_metadata(
+                    self.hardware_metadata.sample_rate
+                )
                 sysid_data = SysIdDataPackage().load_package_from_forcefinder_spr(
                     forcefinder_dict
                 )
             case "MatLab File (*.mat)":
                 field_dict = loadmat(filename)
+                sysid_metadata = SysIdMetadata().default_metadata(
+                    self.hardware_metadata.sample_rate
+                )
                 sysid_data = SysIdDataPackage().load_package_from_mat_field(field_dict)
             case "Numpy File (*.npz)":
                 field_dict = np.load(filename)
+                sysid_metadata = SysIdMetadata().default_metadata(
+                    self.hardware_metadata.sample_rate
+                )
                 sysid_data = SysIdDataPackage().load_package_from_numpy_field(
                     field_dict
                 )
@@ -843,6 +916,7 @@ class SysIdEnvironmentUI(EnvironmentUI):
                 return
 
         try:
+            self.rattlesnake.initialize_system_id(sysid_metadata, self.environment_name)
             self.rattlesnake.load_system_id_from_package(
                 self.environment_name, sysid_data
             )
@@ -1209,9 +1283,11 @@ class SysIdEnvironmentUI(EnvironmentUI):
                     update_kurtosis=True,
                 )
             case SysIdDataAnalysisUICommands.NOISE_COMPLETED:
-                self.run_system_id_validate_noise_closeout()
+                if self.rattlesnake.has_gui:
+                    self.run_system_id_validate_noise_closeout()
             case SysIdDataAnalysisUICommands.TRANSFER_COMPLETED:
-                self.run_system_id_validate_transfer_closeout()
+                if self.rattlesnake.has_gui:
+                    self.run_system_id_validate_transfer_closeout()
             case SysIdDataAnalysisUICommands.NOISE_UPDATE:
                 (
                     frames,

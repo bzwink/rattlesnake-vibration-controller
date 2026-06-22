@@ -26,7 +26,6 @@ from rattlesnake.process.abstract_sysid_data_analysis import (
     SysIdDataPackage,
 )
 
-
 TASK_NAME = "Environment Manager"
 CLOSE_TIMEOUT = 5
 
@@ -65,6 +64,7 @@ class EnvironmentManager:
         self.environment_sysid_stored_events = (
             event_container.environment_sysid_stored_events
         )
+        self.ping_alive_event = event_container.ping_alive_event
         self._threaded = threaded
         if threaded:
             self.new_process = threading.Thread
@@ -144,6 +144,15 @@ class EnvironmentManager:
                 acquisition_ready_environments[queue_name] = True
 
         return acquisition_ready_environments
+
+    @property
+    def sysid_active_environments(self):
+        sysid_active_list = []
+        for queue_name, environment_name in self.environment_names.items():
+            if self.environment_sysid_active_events[queue_name].is_set():
+                sysid_active_list.append(environment_name)
+
+        return sysid_active_list
 
     def clear_sysid_events(self):
         for queue_name in self.queue_names:
@@ -389,12 +398,6 @@ class EnvironmentManager:
                 profile_event._queue_name = queue_name
                 profile_event._environment_type = self.environment_types[queue_name]
 
-                if not self.acquisition_ready_environments[queue_name]:
-                    pass
-                    raise RattlesnakeError(
-                        f"{environment_name} requires a system identifcation before performing profile events"
-                    )
-
     # endregion
 
     # region Environment
@@ -451,6 +454,7 @@ class EnvironmentManager:
                 self.environment_close_events[queue_name],
                 self.environment_sysid_active_events[queue_name],
                 self.environment_sysid_stored_events[queue_name],
+                self.ping_alive_event,
                 self.threaded,
             ),
         )

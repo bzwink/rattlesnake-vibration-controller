@@ -23,6 +23,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 import copy
 from enum import Enum
 import multiprocessing as mp
@@ -90,6 +91,7 @@ class TimeMetadata(EnvironmentMetadata):
         environment_name: str = "Time",
         channel_list_bools: list = [],
         sample_rate: int = None,
+        output_oversample: float = None,
         output_signal: np.array = None,
         cancel_rampdown_time: float = None,
     ):
@@ -113,6 +115,7 @@ class TimeMetadata(EnvironmentMetadata):
         super().__init__(
             CONTROL_TYPE, environment_name, channel_list_bools, sample_rate
         )
+        self.output_oversample = output_oversample
         self.output_signal = output_signal
         self.cancel_rampdown_time = cancel_rampdown_time
         self._signal_file = None  # This is only used for saving purposes
@@ -130,12 +133,14 @@ class TimeMetadata(EnvironmentMetadata):
     @property
     def signal_time(self):
         """The length of the signal in seconds"""
-        return self.signal_samples / self.sample_rate
+        return self.signal_samples / (self.sample_rate * self.output_oversample)
 
     @property
     def cancel_rampdown_samples(self):
         """The number of samples required to ramp down the signal when cancelled"""
-        return int(self.cancel_rampdown_time * self.sample_rate)
+        return int(
+            self.cancel_rampdown_time * self.sample_rate * self.output_oversample
+        )
 
     @property
     def signal_file(self):
@@ -256,18 +261,19 @@ class TimeMetadata(EnvironmentMetadata):
             environment_name,
             channel_list_bools,
             hardware_metadata.sample_rate,
+            hardware_metadata.output_oversample,
             output_signal,
             cancel_rampdown_time,
         )
 
-    @staticmethod
-    def create_blank_worksheet_template(worksheet):
-        worksheet.cell(1, 1, "Control Type")
+    @classmethod
+    def create_blank_worksheet_template(cls, worksheet):
+        super().create_blank_worksheet_template(worksheet)
         worksheet.cell(1, 2, "Time")
         worksheet.cell(
             1,
             4,
-            "Note: Replace cells with hash marks (#) to provide the requested parameters.",
+            "Note: Fill in second row with information requested by hash marks (#).",
         )
         worksheet.cell(2, 1, "Signal File")
         worksheet.cell(
@@ -283,7 +289,7 @@ class TimeMetadata(EnvironmentMetadata):
     def save_metadata_to_worksheet(
         self, worksheet: openpyxl.worksheet.worksheet.Worksheet
     ):
-        super().store_to_worksheet(worksheet)
+        super().save_metadata_to_worksheet(worksheet)
 
         if self.signal_file:
             worksheet.cell(2, 2, str(self.signal_file))
@@ -306,9 +312,12 @@ class TimeMetadata(EnvironmentMetadata):
                     continue
                 case "signal_file":
                     signal_file = value
-                    output_signal = load_time_history(
-                        signal_file, hardware_metadata.sample_rate
-                    )
+                    try:
+                        output_signal = load_time_history(
+                            signal_file, hardware_metadata.sample_rate
+                        )
+                    except:
+                        output_signal = np.zeros((1, 1))
                 case "cancel_rampdown_time":
                     cancel_rampdown_time = float(value)
                 case "":
@@ -322,6 +331,7 @@ class TimeMetadata(EnvironmentMetadata):
             environment_name,
             channel_list_bools,
             hardware_metadata.sample_rate,
+            hardware_metadata.output_oversample,
             output_signal,
             cancel_rampdown_time,
         )
@@ -448,6 +458,7 @@ class TimeEnvironment(Environment):
         self.signal_remainder = None
         self.output_channels = None
         self.measurement_channels = None
+        self.set_ready()
 
     # endregion
 
@@ -493,6 +504,7 @@ class TimeEnvironment(Environment):
         """
         self.log("Initializing Environment Parameters")
         super().initialize_environment(environment_metadata)
+        self.set_ready()
 
     # endregion
 
@@ -748,6 +760,7 @@ def time_process(
     shutdown_event: mp.synchronize.Event,
     sysid_active_event: mp.synchronize.Event,
     sysid_stored_event: mp.synchronize.Event,
+    ping_alive_event: mp.synchronize.Event,
     threaded: bool,
 ):
     """Time signal generation environment process function called by multiprocessing

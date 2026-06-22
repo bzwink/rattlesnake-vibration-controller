@@ -21,6 +21,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 from enum import Enum
 from pathlib import Path
 from typing import Dict
@@ -30,14 +31,13 @@ import multiprocessing.synchronize  # pylint: disable=unused-import
 import netCDF4 as nc
 import numpy as np
 
-from rattlesnake.utilities import GlobalCommands, QueueContainer
+from rattlesnake.utilities import GlobalCommands, QueueContainer, RattlesnakeError
 from rattlesnake.load_utilities import save_rattlesnake_to_netcdf
 from rattlesnake.hardware.abstract_hardware import HardwareMetadata
 from rattlesnake.environment.abstract_environment import EnvironmentMetadata
 from rattlesnake.process.abstract_message_process import AbstractMessageProcess
 
 
-# region: StreamType
 class StreamType(Enum):
     NO_STREAM = 0
     IMMEDIATELY = 1
@@ -46,7 +46,7 @@ class StreamType(Enum):
     MANUAL = 4
 
 
-# region: StreamMetadata
+# region Metadata
 class StreamMetadata:
     def __init__(
         self,
@@ -61,13 +61,13 @@ class StreamMetadata:
     def validate(self):
         if self.stream_type != StreamType.NO_STREAM:
             if not self.stream_file or not isinstance(self.stream_file, (str, Path)):
-                raise ValueError(
+                raise RattlesnakeError(
                     "Streaming was enabled but no valid stream file path was provided"
                 )
 
             parent_dir = Path(self.stream_file).parent
             if not parent_dir.exists():
-                raise ValueError(
+                raise RattlesnakeError(
                     f"The directory for the stream file does not exist: {parent_dir}"
                 )
 
@@ -77,11 +77,15 @@ class StreamMetadata:
             if self.test_level_environment_name is None or not isinstance(
                 self.test_level_environment_name, str
             ):
-                raise ValueError(
+                raise RattlesnakeError(
                     "No test level environment was chosen for the stream to start at"
                 )
 
 
+# endregion
+
+
+# region Process Class
 class StreamingProcess(AbstractMessageProcess):
     """
     Class containing the functionality to stream data to disk.
@@ -221,7 +225,10 @@ class StreamingProcess(AbstractMessageProcess):
         return True
 
 
-# region: streaming_process
+# endregion
+
+
+# region Process
 def streaming_process(
     queue_container: QueueContainer,
     ready_event: mp.synchronize.Event,
@@ -243,3 +250,6 @@ def streaming_process(
     streaming_instance = StreamingProcess("Streaming", queue_container, ready_event)
 
     streaming_instance.run(shutdown_event)
+
+
+# endregion

@@ -31,7 +31,12 @@ import scipy.signal as signal
 import netCDF4 as nc4
 import openpyxl
 
-from rattlesnake.utilities import flush_queue, RattlesnakeError
+from rattlesnake.utilities import (
+    flush_queue,
+    RattlesnakeError,
+    _direction_map,
+    _direction_inv_map,
+)
 from rattlesnake.hardware.abstract_hardware import (
     HardwareMetadata,
     HardwareAcquisition,
@@ -39,56 +44,6 @@ from rattlesnake.hardware.abstract_hardware import (
 )
 from rattlesnake.hardware.hardware_utilities import HardwareType, Channel
 from rattlesnake.user_interface.ui_utilities import HardwareAssistModules
-
-_direction_map = {
-    "X+": 1,
-    "X": 1,
-    "+X": 1,
-    "Y+": 2,
-    "Y": 2,
-    "+Y": 2,
-    "Z+": 3,
-    "Z": 3,
-    "+Z": 3,
-    "RX+": 4,
-    "RX": 4,
-    "+RX": 4,
-    "RY+": 5,
-    "RY": 5,
-    "+RY": 5,
-    "RZ+": 6,
-    "RZ": 6,
-    "+RZ": 6,
-    "X-": -1,
-    "-X": -1,
-    "Y-": -2,
-    "-Y": -2,
-    "Z-": -3,
-    "-Z": -3,
-    "RX-": -4,
-    "-RX": -4,
-    "RY-": -5,
-    "-RY": -5,
-    "RZ-": -6,
-    "-RZ": -6,
-    "": 0,
-    None: 0,
-}
-_direction_inv_map = {
-    0: "",
-    1: "X+",
-    2: "Y+",
-    3: "Z+",
-    4: "RX+",
-    5: "RY+",
-    6: "RZ+",
-    -1: "X-",
-    -2: "Y-",
-    -3: "Z-",
-    -4: "RX-",
-    -5: "RY-",
-    -6: "RZ-",
-}
 
 HARDWARE_TYPE = HardwareType.SDYNPY_SYSTEM
 DEBUG = False
@@ -289,6 +244,7 @@ class SDynPySystemMetadata(HardwareMetadata):
 
         hardware_worksheet = workbook["Hardware"]
         hardware_worksheet.cell(2, 2, self.hardware_file)
+        hardware_worksheet.cell(7, 2, self.output_oversample)
 
     @classmethod
     def load_metadata_from_workbook(cls, workbook: openpyxl.workbook.workbook.Workbook):
@@ -338,7 +294,12 @@ class SDynPySystemAcquisition(HardwareAcquisition):
     the test hardware into the controller.
     """
 
-    def __init__(self, system_file: str, queue: mp.Queue, sleep: bool = True):
+    def __init__(
+        self,
+        ping_alive_event: mp.synchronize.Event,
+        queue: mp.Queue,
+        sleep: bool = True,
+    ):
         """
         Loads in the SDynPy system file and sets initial parameters to null
         values.
@@ -365,9 +326,6 @@ class SDynPySystemAcquisition(HardwareAcquisition):
         None.
 
         """
-        self.sdynpy_system_data = {
-            key: val for key, val in np.load(system_file).items()
-        }
         self.system = None
         self.times = None
         self.state = None
@@ -381,13 +339,8 @@ class SDynPySystemAcquisition(HardwareAcquisition):
         self.output_channels = None
         self.acquisition_delay = None
         self.sleep = sleep
-        # Create a dictionary of channels for faster lookup
-        self.channel_indices = {
-            tuple([abs(v) for v in val]): index
-            for index, val in enumerate(self.sdynpy_system_data["coordinate"])
-        }
 
-    def initialize_hardware(self, test_data: HardwareMetadata):
+    def initialize_hardware(self, test_data: SDynPySystemMetadata):
         """
         Initialize the hardware and set up channels and sampling properties
 
@@ -407,6 +360,14 @@ class SDynPySystemAcquisition(HardwareAcquisition):
         None.
 
         """
+        self.sdynpy_system_data = {
+            key: val for key, val in np.load(test_data.hardware_file).items()
+        }
+        # Create a dictionary of channels for faster lookup
+        self.channel_indices = {
+            tuple([abs(v) for v in val]): index
+            for index, val in enumerate(self.sdynpy_system_data["coordinate"])
+        }
         self.create_response_channels(test_data.channel_list)
         self.set_parameters(test_data)
 
@@ -575,7 +536,7 @@ class SDynPySystemAcquisition(HardwareAcquisition):
         self.state = np.zeros(A_state.shape[0])
         # np.savez('SDynPy_State.npz', A=A_state, B=B_state, C = C_state, D = D_state)
 
-    def set_parameters(self, test_data: HardwareMetadata):
+    def set_parameters(self, test_data: SDynPySystemMetadata):
         """Method to set up sampling rate and other test parameters
 
         For the synthetic case, we will set up the integration parameters using
@@ -709,7 +670,7 @@ class SDynPySystemOutput(HardwareOutput):
     hardware task which actually performs the integration.  Therefore, many of
     the functions here are actually empty."""
 
-    def __init__(self, queue: mp.Queue):
+    def __init__(self, ping_alive_event: mp.synchronize.Event, queue: mp.Queue):
         """
         Initializes the hardware by simply storing the data passing queue.
 
@@ -722,7 +683,7 @@ class SDynPySystemOutput(HardwareOutput):
         """
         self.queue = queue
 
-    def initialize_hardware(self, test_data: HardwareMetadata):
+    def initialize_hardware(self, test_data: SDynPySystemMetadata):
         """
         Initialize the hardware and set up sources and sampling properties
 

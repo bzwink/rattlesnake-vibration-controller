@@ -18,13 +18,14 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 import datetime
 import multiprocessing as mp
 import sys
 
 from qtpy import QtWidgets, QtCore
 
-from rattlesnake.process.streaming import streaming_process
+# from rattlesnake.process.streaming import streaming_process
 from rattlesnake.engine import RattlesnakeController
 from rattlesnake.user_interface.user_interface import RattlesnakeUI
 
@@ -70,6 +71,7 @@ def launch_rattlesnake_ui(rattlesnake: RattlesnakeController):
 
 def main():
     """Main Rattlesnake Application Entry Point"""
+    print("Loading Rattlesnake...")
 
     rattlesnake = RattlesnakeController()
 

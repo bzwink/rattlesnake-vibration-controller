@@ -1,6 +1,7 @@
 import multiprocessing as mp
 from abc import ABC, abstractmethod
 from datetime import datetime
+import traceback
 
 from qtpy import QtWidgets, QtCore
 
@@ -302,7 +303,17 @@ class EnvironmentUI(ABC):
                 self.set_environment_instructions(data)
             case UICommands.SET_ATTR:
                 attr, data = data
-                widget = getattr(self, attr)
+                for parent in [
+                    self.definition_widget,
+                    self.run_widget,
+                    self.system_id_widget,
+                    self.prediction_widget,
+                ]:
+                    try:
+                        widget = getattr(parent, attr)
+                        break
+                    except AttributeError:
+                        continue
                 if isinstance(widget, QtWidgets.QDoubleSpinBox):
                     widget.setValue(data)
                 elif isinstance(widget, QtWidgets.QSpinBox):
@@ -343,12 +354,13 @@ class EnvironmentUI(ABC):
         self, ready_event_list, active_event_list, *, active_event_check: bool = None
     ):
         if getattr(self, "event_thread", None) or getattr(self, "event_watcher", None):
-            self.display_error("Event watcher is still active")
+            print("Event watcher is still active")
             return
         self.event_thread = QtCore.QThread()
         self.event_watcher = EventWatcher(
             ready_event_list,
             active_event_list,
+            self.rattlesnake.event_container.ping_alive_event,
             active_event_check=active_event_check,
             timeout=self.rattlesnake.timeout,
         )
@@ -366,6 +378,7 @@ class EnvironmentUI(ABC):
             self.event_watcher = None
 
     def display_error(self, error_message):
+        tb = traceback.format_exc()
         self.log(f"ERROR\n\n {error_message}")
         self.gui_update_queue.put(
             (

@@ -21,6 +21,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 import os
 import traceback
 from abc import ABC, abstractmethod
@@ -127,7 +128,8 @@ class EnvironmentMetadata(ABC):
             None  # Unique name used to track specific environment. Used for queues.
         )
 
-    def map_channel_indices(self):
+    @property
+    def channel_indices(self):
         """Method to return the row indices of the hardware_channel_list that
         contains channels in the environment_channel_list"""
         channel_bools = self.channel_list_bools
@@ -137,6 +139,14 @@ class EnvironmentMetadata(ABC):
             if environment_bool
         ]
         return channel_indices
+
+    def environment_channel_list(self, channel_list):
+        environment_channel_list = [
+            channel
+            for channel, channel_bool in zip(channel_list, self.channel_list_bools)
+            if channel_bool
+        ]
+        return environment_channel_list
 
     # endregion
 
@@ -150,7 +160,7 @@ class EnvironmentMetadata(ABC):
         things like duplicate channel_list entries, valid control channels,
         etc.
         """
-        if self.environment_type not in EnvironmentType:
+        if not isinstance(self.environment_type, EnvironmentType):
             raise RattlesnakeError(
                 f"{self.environment_type} is not a valid ControlType"
             )
@@ -222,14 +232,17 @@ class EnvironmentMetadata(ABC):
 
         """
 
-    @staticmethod
+    @classmethod
     @abstractmethod
     def create_blank_worksheet_template(
+        cls,
         worksheet: openpyxl.worksheet.worksheet.Worksheet,
     ):
         """
         Create blank worksheet template for environment metadata to store to excel file
         """
+        worksheet.cell(1, 1, "Control Type")
+        worksheet.cell(1, 3, "v4.0")
 
     @abstractmethod
     def save_metadata_to_worksheet(
@@ -436,7 +449,7 @@ class Environment(ABC):
         }
         self._acquisition_active_event = acquisition_active_event
         self._output_active_event = output_active_event
-        self.set_ready()
+        # self.set_ready() # Call this at the end of your function
 
     # region Commands
     @property
@@ -510,7 +523,7 @@ class Environment(ABC):
             specific hardware metadata. Assume you are only getting
             the attributes in the base HardwareMetadata class.
         """
-        self.set_ready()
+        # self.set_ready() # Call this at the end of your function
 
     @abstractmethod
     def initialize_environment(self, environment_metadata: EnvironmentMetadata) -> None:
@@ -527,7 +540,7 @@ class Environment(ABC):
         """
         self.environment_name = environment_metadata.environment_name
         self.environment_metadata = environment_metadata
-        self.set_ready()
+        # self.set_ready() # Call this at the end of your function
 
     # endregion
 
@@ -706,6 +719,7 @@ def process(
     shutdown_event: mp.synchronize.Event,
     sysid_active_event: mp.synchronize.Event,
     sysid_stored_event: mp.synchronize.Event,
+    ping_alive_event: mp.synchronize.Event,
     threaded: bool,
 ):
     """A function called by ``multiprocessing.Process`` to start the environment

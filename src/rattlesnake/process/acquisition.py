@@ -20,6 +20,7 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>.
 """
+
 import multiprocessing as mp
 import multiprocessing.queues as mpqueue
 import multiprocessing.synchronize  # pylint: disable=unused-import
@@ -69,6 +70,7 @@ class AcquisitionProcess(AbstractMessageProcess):
         acquisition_active_event: mp.synchronize.Event,
         streaming_active_event: mp.synchronize.Event,
         ready_event: mp.synchronize.Event,
+        ping_alive_event: mp.synchronize.Event,
     ):
         """
         Constructor for the AcquisitionProcess class
@@ -110,6 +112,7 @@ class AcquisitionProcess(AbstractMessageProcess):
         self.startup = True
         self.shutdown_flag = False
         self.any_environments_started = False
+        self.ping_alive_event = ping_alive_event
         # Sampling data
         self.sample_rate = None
         self.read_size = None
@@ -177,68 +180,10 @@ class AcquisitionProcess(AbstractMessageProcess):
             self.hardware.close()
 
         hardware_acquisition_class = HARDWARE_ACQUISITION[metadata.hardware_type]
-        match metadata.hardware_type:
-            case HardwareType.NI_DAQMX:
-                self.hardware = hardware_acquisition_class(
-                    metadata.task_trigger, metadata.output_trigger_generator
-                )
-
-            case HardwareType.LAN_XI:
-                # from .lanxi_hardware_multiprocessing import LanXIAcquisition
-
-                # self.hardware = LanXIAcquisition(
-                #     data_acquisition_parameters.extra_parameters[
-                #         "maximum_acquisition_processes"
-                #     ]
-                # )
-                pass
-            case HardwareType.DP_QUATTRO:
-                # from .data_physics_hardware import DataPhysicsAcquisition
-
-                # self.hardware = DataPhysicsAcquisition(
-                #     data_acquisition_parameters.hardware_file,
-                #     self.queue_container.single_process_hardware_queue,
-                # )
-                pass
-            case HardwareType.DP_900:
-                # from .data_physics_dp900_hardware import DataPhysicsDP900Acquisition
-
-                # self.hardware = DataPhysicsDP900Acquisition(
-                #     data_acquisition_parameters.hardware_file,
-                #     self.queue_container.single_process_hardware_queue,
-                # )
-                pass
-            case HardwareType.EXODUS:
-                # from .exodus_modal_solution_hardware import ExodusAcquisition
-
-                # self.hardware = ExodusAcquisition(
-                #     data_acquisition_parameters.hardware_file,
-                #     self.queue_container.single_process_hardware_queue,
-                # )
-                pass
-            case HardwareType.STATE_SPACE:
-                # from .state_space_virtual_hardware import StateSpaceAcquisition
-
-                # self.hardware = StateSpaceAcquisition(
-                #     data_acquisition_parameters.hardware_file,
-                #     self.queue_container.single_process_hardware_queue,
-                # )
-                pass
-            case HardwareType.SDYNPY_SYSTEM:
-                self.hardware = hardware_acquisition_class(
-                    metadata.hardware_file,
-                    self.queue_container.single_process_hardware_queue,
-                )
-            case HardwareType.SDYNPY_FRF:
-                # from .sdynpy_frf_virtual_hardware import SDynPyFRFAcquisition
-
-                # self.hardware = SDynPyFRFAcquisition(
-                #     data_acquisition_parameters.hardware_file,
-                #     self.queue_container.single_process_hardware_queue,
-                # )
-                pass
-            case _:
-                raise TypeError(f"{metadata.hardware_type} has not been implemented")
+        self.hardware = hardware_acquisition_class(
+            self.ping_alive_event,
+            self.queue_container.single_process_hardware_queue,
+        )
         # Initialize hardware and create channels
         self.hardware.initialize_hardware(metadata)
         # Set up warning and abort limits
@@ -263,7 +208,10 @@ class AcquisitionProcess(AbstractMessageProcess):
             index
             for index, channel in enumerate(metadata.channel_list)
             if (channel.feedback_device is not None)
-            and not (channel.feedback_device.strip() == "")
+            and not (
+                channel.feedback_device.startswith("#")
+                or channel.feedback_device.strip() == ""
+            )
         ]
         self.read_data = np.zeros(
             (
@@ -291,9 +239,7 @@ class AcquisitionProcess(AbstractMessageProcess):
         self.environment_first_data = {}
         for queue_name, metadata in metadata_dict.items():
             self.environment_list.append(queue_name)
-            self.environment_acquisition_channels[queue_name] = (
-                metadata.map_channel_indices()
-            )
+            self.environment_acquisition_channels[queue_name] = metadata.channel_indices
             self.environment_active_flags[queue_name] = False
             self.environment_last_data[queue_name] = False
             self.environment_samples_remaining_to_read[queue_name] = 0
@@ -661,6 +607,7 @@ def acquisition_process(
     streaming_active_event: mp.synchronize.Event,
     ready_event: mp.synchronize.Event,
     shutdown_event: mp.synchronize.Event,
+    ping_alive_event: mp.synchronize.Event,
 ):
     """Function passed to multiprocessing as the acquisition process
 
@@ -681,6 +628,7 @@ def acquisition_process(
         acquisition_active_event,
         streaming_active_event,
         ready_event,
+        ping_alive_event,
     )
 
     acquisition_instance.run(shutdown_event)
