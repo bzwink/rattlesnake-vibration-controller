@@ -67,18 +67,18 @@ class EnvironmentCommands(Enum):
         return self.name.replace("_", " ").title()
 
     @classmethod
-    def valid_data(cls):
-        valid_data = {
-            cls(command): data for command, data in cls.VALID_DATA.value.items()
-        }
-        return valid_data
-
-    @classmethod
     def valid_profile_commands(cls):
         valid_commands = tuple(
             cls(command) for command in cls.VALID_PROFILE_COMMANDS.value
         )
         return valid_commands
+
+    @classmethod
+    def valid_data(cls):
+        valid_data = {
+            cls(command): data for command, data in cls.VALID_DATA.value.items()
+        }
+        return valid_data
 
 
 class EnvironmentUICommands(Enum):
@@ -105,8 +105,8 @@ class EnvironmentMetadata(ABC):
         self,
         environment_type: EnvironmentType,
         environment_name: str,
-        channel_list_bools: list = [],
-        sample_rate: int = None,
+        channel_list_bools: list,
+        sample_rate: int,
     ):
         """
         Initializes the environment metadata class with all attributes

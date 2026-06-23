@@ -75,7 +75,6 @@ class SkeletonUICommands(Enum):
 
 
 # region Metadata
-# region Metadata
 class SkeletonMetadata(EnvironmentMetadata):
     """
     Metadata required to define the skeleton environment.
@@ -418,17 +417,13 @@ class SkeletonEnvironment(Environment):
         ready_event: mp.synchronize.Event,
     ):
         """
-        Time History Generation Environment Constructor
-
-        This function fills out the command map and initializes parameters to
-        zero or null.
 
         Parameters
         ----------
         environment_name : str
             Name of the environment.
         queue_container : SkeletonQueues
-            Container of queues used by the Time Environment.
+            Container of queues used by the Skeleton Environment.
         acqusition_active_event: mp.Event
             Event that is set when the acqusition process is actively reading from the hardware
         output_active_event: mp.Event
@@ -554,7 +549,6 @@ class SkeletonEnvironment(Environment):
 
     def stop_environment(self, data):
         # Set shutdown flag so the run_control knows to stop control loop
-        print("Set shutdown flag")
         self.shutdown_flag = True
 
     def set_test_level(self, data):

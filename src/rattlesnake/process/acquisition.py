@@ -524,7 +524,6 @@ class AcquisitionProcess(AbstractMessageProcess):
                 )
                 if environment_finished:
                     self.environment_last_data[environment] = False
-                    print("Delivered last data")
                     self.log(f"Delivered last data to {environment}")
             #  np.savez('test_data/acquisition_data_check.npz',
             #           read_data = self.read_data,
