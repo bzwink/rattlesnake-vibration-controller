@@ -58,31 +58,34 @@ class SkeletonUI(EnvironmentUI):
 
     # region State Sync
     def initialize_hardware(self, hardware_metadata: HardwareMetadata):
-        num_output = len(
-            [
-                channel
-                for channel in hardware_metadata.channel_list
-                if channel.feedback_device is not None
-            ]
-        )
+        self.run_widget.response_signal_plot.getPlotItem().clear()
 
-        physical_output_names = [
+        plot_names = [
             f"{'' if channel.channel_type is None else channel.channel_type} "
             f"{channel.node_number}{channel.node_direction}"
             for channel in hardware_metadata.channel_list
-            if channel.feedback_device
         ]
 
         self.plot_data_item = multiline_plotter(
             np.arange(2),
-            np.zeros((num_output, 2)),
+            np.zeros((len(hardware_metadata.channel_list), 2)),
             widget=self.run_widget.response_signal_plot,
             other_pen_options={"width": 1},
-            names=physical_output_names,
+            names=plot_names,
         )
         return super().initialize_hardware(hardware_metadata)
 
     def initialize_environment(self, environment_metadata: SkeletonMetadata):
+        num_samples = int(
+            environment_metadata.example_window_size
+            * self.hardware_metadata.sample_rate
+        )
+        for curve in self.plot_data_item:
+            curve.setData(
+                np.arange((num_samples)) / self.hardware_metadata.sample_rate,
+                np.zeros(num_samples),
+            )
+
         return super().initialize_environment(environment_metadata)
 
     def get_environment_metadata(self, global_channel_list: list[Channel]):
@@ -142,6 +145,8 @@ class SkeletonUI(EnvironmentUI):
         return super().display_environment_started()
 
     def display_environment_ended(self):
+        self.run_widget.start_test_button.setEnabled(True)
+        self.run_widget.stop_test_button.setEnabled(False)
         return super().display_environment_ended()
 
     # endregion
@@ -149,9 +154,10 @@ class SkeletonUI(EnvironmentUI):
     # region Commands
     def plot_time_data(self, data: np.array):
         response_data = data
-        x, y = self.plot_data_item.getData()
-        y = np.concatenate((y[response_data.size :], response_data[-x.size :]), axis=0)
-        self.plot_data_item.setData(x, y)
+        for curve, this_data in zip(self.plot_data_item, response_data):
+            x, y = curve.getData()
+            y = np.concatenate((y[this_data.size :], this_data[-x.size :]), axis=0)
+            curve.setData(x, y)
 
     def set_test_level(self, data: float):
         test_level = float(data)

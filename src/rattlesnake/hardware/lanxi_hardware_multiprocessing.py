@@ -1080,7 +1080,7 @@ class LanXIAcquisition(HardwareAcquisition):
         current_time = time.time()
         if self.last_acquisition_time is not None:
             dtime = current_time - self.last_acquisition_time
-            print(f"Took {dtime:0.4f}s to read {full_read_data.shape[-1]} samples")
+            # print(f"Took {dtime:0.4f}s to read {full_read_data.shape[-1]} samples")
         self.last_acquisition_time = current_time
         return full_read_data
 

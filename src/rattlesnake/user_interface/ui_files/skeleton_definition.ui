@@ -24,7 +24,11 @@
       </widget>
      </item>
      <item>
-      <widget class="QDoubleSpinBox" name="window_size_spinbox"/>
+      <widget class="QDoubleSpinBox" name="window_size_spinbox">
+       <property name="value">
+        <double>5.000000000000000</double>
+       </property>
+      </widget>
      </item>
      <item>
       <spacer name="parameter_spacer">

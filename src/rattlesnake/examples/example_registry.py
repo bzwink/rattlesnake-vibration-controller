@@ -71,6 +71,10 @@ from rattlesnake.examples.environment.transient.transient_metadata import (
     transient_event_list,
     worksheet_transient_event_list,
 )
+from rattlesnake.examples.environment.skeleton.skeleton_metadata import (
+    manual_skeleton_metadata,
+    skeleton_instructions,
+)
 
 from rattlesnake.hardware.hardware_utilities import HardwareType
 from rattlesnake.environment.environment_utilities import EnvironmentType
@@ -143,12 +147,14 @@ TRANSIENT_DICT = {
     "worksheet": worksheet_transient_metadata,
     "netcdf": netcdf_transient_metadata,
 }
+SKELETON_DICT = {"manual": manual_skeleton_metadata}
 ENVIRONMENT_DICT[EnvironmentType.NONE] = BLANK_ENVIRONMENT_DICT
 ENVIRONMENT_DICT[EnvironmentType.TIME] = TIME_DICT
 ENVIRONMENT_DICT[EnvironmentType.MODAL] = MODAL_DICT
 ENVIRONMENT_DICT[EnvironmentType.SINE] = SINE_DICT
 ENVIRONMENT_DICT[EnvironmentType.RANDOM] = RANDOM_DICT
 ENVIRONMENT_DICT[EnvironmentType.TRANSIENT] = TRANSIENT_DICT
+ENVIRONMENT_DICT[EnvironmentType.SKELETON] = SKELETON_DICT
 
 # System Identification
 SYSID_DICT = {
@@ -198,12 +204,18 @@ TRANSIENT_EVENT_DICT = {
     "netcdf": transient_event_list,
     "worksheet": worksheet_transient_event_list,
 }
+SKELETON_EVENT_DICT = {
+    "manual": lambda: [],
+    "netcdf": lambda: [],
+    "worksheet": lambda: [],
+}
 EVENT_DICT[EnvironmentType.NONE] = BLANK_EVENT_DICT
 EVENT_DICT[EnvironmentType.TIME] = TIME_EVENT_DICT
 EVENT_DICT[EnvironmentType.MODAL] = MODAL_EVENT_DICT
 EVENT_DICT[EnvironmentType.SINE] = SINE_EVENT_DICT
 EVENT_DICT[EnvironmentType.RANDOM] = RANDOM_EVENT_DICT
 EVENT_DICT[EnvironmentType.TRANSIENT] = TRANSIENT_EVENT_DICT
+EVENT_DICT[EnvironmentType.SKELETON] = SKELETON_EVENT_DICT
 
 # Instructions
 INSTRUCTIONS_DICT = {}
@@ -213,3 +225,4 @@ INSTRUCTIONS_DICT[EnvironmentType.MODAL] = modal_instructions
 INSTRUCTIONS_DICT[EnvironmentType.SINE] = sine_instructions
 INSTRUCTIONS_DICT[EnvironmentType.RANDOM] = random_instructions
 INSTRUCTIONS_DICT[EnvironmentType.TRANSIENT] = transient_instructions
+INSTRUCTIONS_DICT[EnvironmentType.SKELETON] = skeleton_instructions

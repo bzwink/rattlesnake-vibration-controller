@@ -526,6 +526,7 @@ class Environment(ABC):
             specific hardware metadata. Assume you are only getting
             the attributes in the base HardwareMetadata class.
         """
+        self.hardware_metadata = hardware_metadata
         # self.set_ready() # Call this at the end of your function
 
     @abstractmethod

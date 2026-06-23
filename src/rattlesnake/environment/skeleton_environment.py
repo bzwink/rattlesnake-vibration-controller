@@ -456,10 +456,15 @@ class SkeletonEnvironment(Environment):
 
         # Define command map
         self.command_map[GlobalCommands.START_ENVIRONMENT] = self.start_environment
+        self.command_map[SkeletonCommands.EXAMPLE_RUN_ENVIRONMENT] = self.run_control
+        self.command_map[SkeletonCommands.EXAMPLE_SET_TEST_LEVEL] = self.set_test_level
 
         # Persistent data
         self.test_level = 0
         self.shutdown_flag = True
+        self.last_acqusition = False
+        self.control_channels = []
+        self.output_signal = []
 
         # Tell controller that initialization was successful
         self.set_ready()
@@ -469,6 +474,15 @@ class SkeletonEnvironment(Environment):
     # region State Sync
     def initialize_hardware(self, hardware_metadata: HardwareMetadata):
         super().initialize_hardware(hardware_metadata)
+
+        self.control_channels = [
+            index
+            for index, channel in enumerate(hardware_metadata.channel_list)
+            if channel.feedback_device is not None
+        ]
+        self.output_signal = np.zeros(
+            (len(self.control_channels), self.hardware_metadata.samples_per_write)
+        )
         self.set_ready()
 
     def initialize_environment(self, environment_metadata: SkeletonMetadata):
@@ -485,14 +499,17 @@ class SkeletonEnvironment(Environment):
                 test_level = data.example_test_level
                 self.test_level = test_level
                 self.gui_update_queue.put(
-                    self.environment_name,
-                    (SkeletonUICommands.EXAMPLE_UI_SET_TEST_LEVEL, test_level),
+                    (
+                        self.environment_name,
+                        (SkeletonUICommands.EXAMPLE_UI_SET_TEST_LEVEL, test_level),
+                    )
                 )
 
             # Set startup flags
             self.set_active()
             self.shutdown_flag = False
-            self.queue_container.gui_update_queue.put(
+            self.last_acqusition = False
+            self.gui_update_queue.put(
                 (self.environment_name, (UICommands.ENVIRONMENT_STARTED, None))
             )
 
@@ -506,35 +523,43 @@ class SkeletonEnvironment(Environment):
         try:
             acqusition_data, self.last_acqusition = self.data_in_queue.get_nowait()
             self.gui_update_queue.put(
-                self.environment_name,
-                (SkeletonUICommands.EXAMPLE_UI_SHOW_DATA, acqusition_data),
+                (
+                    self.environment_name,
+                    (SkeletonUICommands.EXAMPLE_UI_SHOW_DATA, acqusition_data),
+                ),
             )
         except (thqueue.Empty, mpqueue.Empty):
-            self.last_acqusition = False
+            pass
 
         # If required, put data to data out queue
         if self.data_out_queue.empty():
-            output_signal = np.zeros(
-                (self.control_channels, self.hardware_metadata.samples_per_write)
+            self.data_out_queue.put(
+                (copy.deepcopy(self.output_signal), self.shutdown_flag)
             )
-            self.data_out_queue.put((copy.deepcopy(output_signal), self.shutdown_flag))
+            if self.shutdown_flag:
+                self.shutdown_flag = False
 
-        # Run control again if not shutting down
-        if not self.shutdown_flag:
-            self.environment_command_queue.put(
-                self.environment_name, (SkeletonCommands.EXAMPLE_RUN_ENVIRONMENT, None)
-            )
-        # Flush queue and don't run control
-        else:
-            self.queue_container.environment_command_queue.flush(self.environment_name)
-            self.queue_container.gui_update_queue.put(
+        # If environment is shutting down, flush queue and update UI
+        if self.last_acqusition:
+            self.environment_command_queue.flush(self.environment_name)
+            self.gui_update_queue.put(
                 (self.environment_name, (UICommands.ENVIRONMENT_ENDED, None))
             )
             self.clear_active()
+        # Run control if environment is not shutting down
+        else:
+            self.environment_command_queue.put(
+                self.environment_name, (SkeletonCommands.EXAMPLE_RUN_ENVIRONMENT, None)
+            )
 
     def stop_environment(self, data):
         # Set shutdown flag so the run_control knows to stop control loop
+        print("Set shutdown flag")
         self.shutdown_flag = True
+
+    def set_test_level(self, data):
+        self.test_level = data
+        print(f"Setting test level {self.test_level}")
 
 
 def skeleton_process(
