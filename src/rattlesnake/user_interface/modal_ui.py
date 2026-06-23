@@ -1288,6 +1288,28 @@ class ModalUI(EnvironmentUI):
             self.rattlesnake.hardware_metadata,
             self.rattlesnake.environment_metadata,
         )  # This is scuffed but is an edge case
+
+        channel_group = self.netcdf_handle["channels"]
+        node_number_var = channel_group["node_number"]
+        node_direction_var = channel_group["node_direction"]
+        num_channels = self.netcdf_handle.dimensions["response_channels"].size
+
+        for row_num, override_values in self.override_table.items():
+            new_node_number, new_node_direction = override_values
+
+            if row_num < 0 or row_num >= num_channels:
+                raise IndexError(
+                    f"Override row {row_num} is outside valid channel range "
+                    f"0 to {num_channels - 1}"
+                )
+
+            node_number_var[row_num] = (
+                "" if new_node_number is None else str(new_node_number)
+            )
+            node_direction_var[row_num] = (
+                "" if new_node_direction is None else str(new_node_direction)
+            )
+
         group_handle = self.netcdf_handle.groups[self.environment_name]
         group_handle.createDimension("fft_lines", self.environment_metadata.fft_lines)
         group_handle.createVariable(
