@@ -12,6 +12,7 @@ import netCDF4 as nc4
 
 from rattlesnake.utilities import (
     log_file_task,
+    gui_queue_cleanup,
     flush_queue,
     EventContainer,
     GlobalCommands,
@@ -45,8 +46,9 @@ from rattlesnake.environment.environment_registry import SYSID_ENVIRONMENTS
 
 
 TASK_NAME = "Rattlesnake"
-CLOSE_TIMEOUT = 5  # Number of seconds to wait for process to join
+CLOSE_TIMEOUT = 20  # Number of seconds to wait for process to join
 THREADING = False
+MAX_GUI_QUEUE_SIZE = 500
 
 
 # region State
@@ -65,7 +67,13 @@ class RattlesnakeController:
     """Object responsible for setting up, sending data to, and running processes that
     make up the rattlesnake vibration controller."""
 
-    def __init__(self, *, threaded: bool = THREADING, timeout: float = 20):
+    def __init__(
+        self,
+        *,
+        threaded: bool = THREADING,
+        timeout: float = CLOSE_TIMEOUT,
+        max_gui_queue_size: int = MAX_GUI_QUEUE_SIZE,
+    ):
         """
         Initializes a blank rattlesnake controller object and spins up multiple processes
         required to run a vibration test.
@@ -93,7 +101,6 @@ class RattlesnakeController:
         self._threaded = threaded
         self._blocking = True  # Wait for ready events?, True for IDE, False for UI
         self._timeout = timeout  # Timeout while waiting for ready_events
-        self.has_gui = False
 
         if self.threaded:
             new_queue = thqueue.Queue  # threading-safe in-memory queue
@@ -103,6 +110,7 @@ class RattlesnakeController:
             new_queue = mp.Queue  # multiprocessing queue
             new_process = mp.Process  # worker processes
             new_event = mp.Event  # optional stop flag
+        self._has_gui = new_event()
 
         # Start up log file process
         log_file_queue = mp.Queue()
@@ -280,6 +288,16 @@ class RattlesnakeController:
             ),
         )
         self.streaming_proc.start()
+        # Headless gui update queue cleanup
+        self.gui_queue_cleanup = new_process(
+            target=gui_queue_cleanup,
+            args=(
+                self.queue_container.gui_update_queue,
+                self._has_gui,
+                max_gui_queue_size,
+            ),
+        )
+        self.gui_queue_cleanup.start()
 
         # Set up managers that will setup processes and store metadata
         self.environment_manager = (
@@ -371,6 +389,10 @@ class RattlesnakeController:
         return self._timeout
 
     @property
+    def has_gui(self):
+        return self._has_gui.is_set()
+
+    @property
     def is_alive(self):
         return self.event_container.ping_alive_event.is_set()
 
@@ -447,7 +469,8 @@ class RattlesnakeController:
     # region Loading
     def setup_gui(self):
         self.clear_blocking()
-        self.has_gui = True
+        self._has_gui.set()
+        self.gui_queue_cleanup.join()
 
     def load_rattlesnake_from_template(self, filepath: str):
         """
@@ -1190,6 +1213,10 @@ class RattlesnakeController:
 
     # region Shutdown
     def shutdown(self):
+        if not self.has_gui:
+            self._has_gui.set()
+            self.gui_queue_cleanup.join()
+
         if self.state in (
             RattlesnakeState.HARDWARE_ACTIVE,
             RattlesnakeState.ENVIRONMENT_ACTIVE,

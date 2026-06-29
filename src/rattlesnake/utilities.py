@@ -75,6 +75,15 @@ def log_file_task(queue: mp.Queue, shutdown_event):
             f.flush()
 
 
+def gui_queue_cleanup(gui_update_queue, shutdown_event, max_queue_size):
+    while not shutdown_event.is_set():
+        try:
+            if gui_update_queue.qsize() > max_queue_size:
+                gui_update_queue.get_nowait()
+        except (thqueue.Empty, mpqueue.Empty):
+            continue
+
+
 class RattlesnakeError(Exception):
     pass
 
