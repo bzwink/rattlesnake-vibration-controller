@@ -92,11 +92,6 @@ class SysIdUICommands(Enum):
     SYSID_STARTED = 0
     SYSID_ENDED = 1
 
-    @property
-    def label(self):
-        """Used by UI as names for"""
-        return self.name.replace("_", " ").title()
-
 
 # endregion
 
