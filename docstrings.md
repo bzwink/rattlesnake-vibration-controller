@@ -181,9 +181,9 @@ MARK: Environment Metadata
     Unit Tests
     ----------
     test_environment_metadata
-        Verifies that subclasses initialize required metadata attributes
-        and preserve the supplied environment type, name, channel mask, and
-        sample rate.
+        Verifies that subclasses within ``ENVIRONMENT_METADATA`` in the 
+        registry initialize required metadata attributes and preserve the 
+        supplied environment type, name, channel mask, and sample rate.
     """
 
     def __init__
@@ -599,12 +599,6 @@ MARK: Environment
         Hardware metadata used by the environment after initialization.
     environment_metadata : EnvironmentMetadata
         Environment metadata used by the environment after initialization.
-
-    Unit Tests
-    ----------
-    test_environment
-        Verifies that aall valid environment subclasses can be initialized with
-        queues and events and exposes the expected base interface.
     """
 
     def __init__
@@ -1189,8 +1183,74 @@ MARK: System Id Commands
 MARK: System Id Environment Metadata
 --->
     class SysIdEnvironmentMetadata
+    """
+    Abstract base class for metadata used by environments supporting system
+    identification.
+
+    Extends ``EnvironmentMetadata`` with the information required to perform
+    system identification measurements. In addition to the standard
+    environment definition, this class stores a ``SysIdMetadata`` object
+    describing excitation signals, spectral processing parameters, averaging,
+    and related system identification settings.
+
+    Subclasses must define the physical channel mappings, transformation
+    matrices, and any additional environment-specific metadata required to
+    perform system identification.
+
+    Parameters
+    ----------
+    environment_type : EnvironmentType
+        Type of environment represented by this metadata.
+    environment_name : str
+        Name of the environment.
+    channel_list_bools : list of bool
+        Boolean mask identifying channels assigned to the environment.
+    sample_rate : int
+        Environment sample rate.
+    sysid_metadata : SysIdMetadata, optional
+        System identification metadata. If omitted, default metadata is
+        created using the supplied sample rate.
+
+    Attributes
+    ----------
+    sysid_metadata : SysIdMetadata
+        Metadata defining excitation signals and processing parameters used
+        for system identification.
+
+    Unit Tests
+    ----------
+    test_sysid_environment_metadata
+        Verifies that subclasses initialize the base metadata and create a
+        valid ``SysIdMetadata`` instance when one is not supplied.
+    """
 
     def __init__
+    """
+    Initialize system identification environment metadata.
+
+    Initializes the base environment metadata and stores the associated
+    system identification metadata. If no metadata is supplied, a default
+    ``SysIdMetadata`` object is created using the supplied sample rate.
+
+    Parameters
+    ----------
+    environment_type : EnvironmentType
+        Type of environment.
+    environment_name : str
+        Name of the environment.
+    channel_list_bools : list of bool
+        Boolean channel mask.
+    sample_rate : int
+        Environment sample rate.
+    sysid_metadata : SysIdMetadata, optional
+        Metadata defining the system identification parameters.
+
+    Unit Tests
+    ----------
+    test_sysid_environment_metadata_init
+        Verifies that supplied metadata is stored and that default metadata is
+        created when no metadata is provided.
+    """
 
 # Process
 
