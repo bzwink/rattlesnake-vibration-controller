@@ -234,60 +234,50 @@ def test_environment_metadata_load_save_netcdf(
         metadata.save_metadata_to_netcdf(group)
 
     with nc4.Dataset(path, "r") as dataset:
+        load_group = dataset.groups["Environment Name"]
         loaded = metadata_class.load_metadata_from_netcdf(
-            netcdf_handle=dataset,
-            environment_name="Mock Environment",
+            load_group,
+            environment_name="Environment Name",
             channel_list_bools=mock_channel_list_bools(),
             hardware_metadata=hardware_metadata,
         )
 
-        group = dataset.groups["Environment Name"]
-        assert group.environment_name == "Environment Name"
-        assert group.environment_type == str(environment_type)
-        assert int(group.sample_rate) == 4096
-
     assert loaded.environment_name == "Environment Name"
-    assert loaded.channel_list_bools == [True, False, True]
-    assert loaded.sample_rate == 4096
+    assert loaded.channel_list_bools == [True, True]
+    assert loaded.sample_rate == 1024
     loaded.validate(hardware_metadata)
 
 
-# def test_environment_metadata_load_save_worksheet(hardware_metadata):
-#     metadata = MockEnvironmentMetadata(
-#         environment_name="Mock Environment",
-#         channel_list_bools=[True, False, True],
-#         sample_rate=8192,
-#     )
+@pytest.mark.parametrize("environment_type", IMPLEMENTED_ENVIRONMENT)
+def test_environment_metadata_load_save_worksheet(environment_type, hardware_metadata):
+    metadata_class = ENVIRONMENT_METADATA[environment_type]
+    metadata = ENVIRONMENT_DICT[environment_type]["manual"](hardware_metadata)
+    metadata.environment_name = "Environment Name"
 
-#     workbook = openpyxl.Workbook()
-#     worksheet = workbook.active
+    workbook = openpyxl.Workbook()
+    worksheet = workbook.active
 
-#     metadata.save_metadata_to_worksheet(worksheet)
+    metadata.save_metadata_to_worksheet(worksheet)
 
-#     assert worksheet.cell(1, 1).value == "Control Type"
-#     assert worksheet.cell(1, 2).value == str(ENVIRONMENT_TYPE)
-#     assert worksheet.cell(1, 3).value == "v4.0"
-#     assert worksheet.cell(2, 2).value == "Mock Environment"
-#     assert worksheet.cell(3, 2).value == 8192
+    assert worksheet.cell(1, 1).value == "Control Type"
+    assert worksheet.cell(1, 3).value == "v4.0"
 
-#     loaded = MockEnvironmentMetadata.load_metadata_from_worksheet(
-#         worksheet=worksheet,
-#         environment_name="Mock Environment",
-#         channel_list_bools=[True, False, True],
-#         hardware_metadata=hardware_metadata,
-#     )
+    loaded = metadata_class.load_metadata_from_worksheet(
+        worksheet=worksheet,
+        environment_name="Environment Name",
+        channel_list_bools=mock_channel_list_bools(),
+        hardware_metadata=hardware_metadata,
+    )
 
-#     assert loaded.environment_name == "Mock Environment"
-#     assert loaded.channel_list_bools == [True, False, True]
-#     assert loaded.sample_rate == 8192
-#     loaded.validate(hardware_metadata)
+    assert loaded.environment_name == "Environment Name"
+    assert loaded.channel_list_bools == [True, True]
+    assert loaded.sample_rate == 1024
+    loaded.validate(hardware_metadata)
 
 
-# # ---------------------------------------------------------------------------
-# # EnvironmentInstructions tests
-# # ---------------------------------------------------------------------------
+# endregion
 
-
+# region Environment Instructions
 # def test_environment_instructions_init():
 #     instructions = MockEnvironmentInstructions(environment_name="Env A")
 

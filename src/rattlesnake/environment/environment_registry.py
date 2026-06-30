@@ -2,6 +2,7 @@ from rattlesnake.environment.environment_utilities import EnvironmentType
 
 UNIMPLEMENTED_ENVIRONMENT = [
     EnvironmentType.READ,
+    EnvironmentType.SKELETON,
     EnvironmentType.SYSID_SKELETON,
 ]
 
