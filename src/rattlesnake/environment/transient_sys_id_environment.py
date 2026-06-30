@@ -32,6 +32,7 @@ import inspect
 from enum import Enum
 from multiprocessing.queues import Queue
 from typing import List
+import queue as thqueue
 
 import openpyxl
 import netCDF4 as nc4
@@ -582,6 +583,7 @@ class TransientQueues:
         data_in_queue: Queue,
         data_out_queue: Queue,
         log_file_queue: VerboseMessageQueue,
+        threaded: bool,
     ):
         """A container class for the queues that transient will manage.
 
@@ -612,6 +614,11 @@ class TransientQueues:
             Queue for putting logging messages that will be read by the logging
             subtask and written to a file.
         """
+        if threaded:
+            new_queue = thqueue.Queue
+        else:
+            new_queue = mp.Queue
+
         self.environment_command_queue = environment_command_queue
         self.gui_update_queue = gui_update_queue
         self.data_analysis_command_queue = VerboseMessageQueue(
@@ -1330,6 +1337,7 @@ def transient_process(
             data_in_queue,
             data_out_queue,
             log_file_queue,
+            threaded,
         )
 
         spectral_proc = new_process(

@@ -30,6 +30,7 @@ import time
 import traceback
 from enum import Enum
 from typing import List
+import queue as thqueue
 
 import netCDF4 as nc4
 import numpy as np
@@ -1001,6 +1002,7 @@ class SineQueues:
         data_in_queue: mp.Queue,
         data_out_queue: mp.Queue,
         log_file_queue: VerboseMessageQueue,
+        threaded: bool,
     ):
         """A container class for the queues that sine vibration will manage.
 
@@ -1030,33 +1032,38 @@ class SineQueues:
             Queue for putting logging messages that will be read by the logging
             subtask and written to a file.
         """
+        if threaded:
+            new_queue = thqueue.Queue
+        else:
+            new_queue = mp.Queue
+
         self.environment_command_queue = environment_command_queue
         self.gui_update_queue = gui_update_queue
         self.data_analysis_command_queue = VerboseMessageQueue(
             log_file_queue,
-            mp.Queue(),
+            new_queue(),
             environment_name + " Data Analysis Command Queue",
         )
         self.signal_generation_command_queue = VerboseMessageQueue(
             log_file_queue,
-            mp.Queue(),
+            new_queue(),
             environment_name + " Signal Generation Command Queue",
         )
         self.spectral_command_queue = VerboseMessageQueue(
             log_file_queue,
-            mp.Queue(),
+            new_queue(),
             environment_name + " Spectral Computation Command Queue",
         )
         self.collector_command_queue = VerboseMessageQueue(
             log_file_queue,
-            mp.Queue(),
+            new_queue(),
             environment_name + " Data Collector Command Queue",
         )
         self.controller_communication_queue = controller_communication_queue
         self.data_in_queue = data_in_queue
         self.data_out_queue = data_out_queue
-        self.data_for_spectral_computation_queue = mp.Queue()
-        self.updated_spectral_quantities_queue = mp.Queue()
+        self.data_for_spectral_computation_queue = new_queue()
+        self.updated_spectral_quantities_queue = new_queue()
         self.time_history_to_generate_queue = mp.Queue()
         self.log_file_queue = log_file_queue
 
@@ -2691,6 +2698,7 @@ def sine_process(
             data_in_queue,
             data_out_queue,
             log_file_queue,
+            threaded,
         )
 
         spectral_proc = new_process(

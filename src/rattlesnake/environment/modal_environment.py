@@ -28,6 +28,7 @@ import time
 from typing import List
 from enum import Enum
 from glob import glob
+import queue as thqueue
 
 import openpyxl
 import netCDF4 as nc4
@@ -943,6 +944,7 @@ class ModalQueues:
         data_in_queue: mp.Queue,
         data_out_queue: mp.Queue,
         log_file_queue: mp.Queue,
+        threaded: bool,
     ):
         """
         Creates a namespace to store all the queues used by the Modal Environment
@@ -962,28 +964,32 @@ class ModalQueues:
         log_file_queue : VerboseMessageQueue
             Queue to which the environment will write log file messages.
         """
+        if threaded:
+            new_queue = thqueue.Queue
+        else:
+            new_queue = mp.Queue
         self.environment_command_queue = environment_command_queue
         self.gui_update_queue = gui_update_queue
         self.controller_communication_queue = controller_communication_queue
         self.data_in_queue = data_in_queue
         self.data_out_queue = data_out_queue
         self.log_file_queue = log_file_queue
-        self.data_for_spectral_computation_queue = mp.Queue()
-        self.updated_spectral_quantities_queue = mp.Queue()
-        self.signal_generation_update_queue = mp.Queue()
+        self.data_for_spectral_computation_queue = new_queue()
+        self.updated_spectral_quantities_queue = new_queue()
+        self.signal_generation_update_queue = new_queue()
         self.spectral_command_queue = VerboseMessageQueue(
             log_file_queue,
-            mp.Queue(),
+            new_queue(),
             environment_name + " Spectral Computation Command Queue",
         )
         self.collector_command_queue = VerboseMessageQueue(
             log_file_queue,
-            mp.Queue(),
+            new_queue(),
             environment_name + " Data Collector Command Queue",
         )
         self.signal_generation_command_queue = VerboseMessageQueue(
             log_file_queue,
-            mp.Queue(),
+            new_queue(),
             environment_name + " Signal Generation Command Queue",
         )
 
@@ -1575,6 +1581,7 @@ def modal_process(
         data_in_queue,
         data_out_queue,
         log_file_queue,
+        threaded,
     )
 
     spectral_proc = new_process(
