@@ -44,7 +44,7 @@ MARK: Environment Commands
 
     Unit Tests
     ----------
-    test_environment_commands
+    test_environment_commands_have_unique_integer_values
         Iterates through each enum member to confirm unique integer values.
         Verifies that ``VALID_PROFILE_COMMANDS`` is a tuple of ints and
         ``VALID_DATA`` is a dict mapping ints to types.
@@ -123,13 +123,6 @@ MARK: Environment UI Commands
     Subclasses may extend this enum with additional UI-only commands used
     to update widgets, communicate UI state, or trigger UI-specific
     behavior.
-
-    Unit Tests
-    ----------
-    test_environment_ui_commands
-        Verifies that the enum can be instantiated or subclassed for
-        UI-specific command definitions and that any defined enum members
-        have unique values.
     """
 
 ### Environment Metadata
@@ -301,7 +294,7 @@ MARK: Environment Metadata
         Verifies that an error is thrown when the environment name is not a string.
 
     test_environment_metadata_validate_invalid_channel_list
-        Verifies that an erros is thrown when an invalid channel list is given to the metadata.
+        Verifies that an error is thrown when an invalid channel list is given to the metadata.
     """
 
     def save_metadata_to_netcdf

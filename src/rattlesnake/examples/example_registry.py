@@ -80,6 +80,11 @@ from rattlesnake.hardware.hardware_utilities import HardwareType
 from rattlesnake.environment.environment_utilities import EnvironmentType
 from rattlesnake.process.streaming import StreamType
 
+from rattlesnake.testing.mock_environment_new import (
+    MockEnvironmentMetadata,
+    MockEnvironmentInstructions,
+)
+
 # Hardware
 HARDWARE_DICT = {}
 
@@ -118,9 +123,9 @@ HARDWARE_DICT[HardwareType.EXODUS] = EXODUS_DICT
 ENVIRONMENT_DICT = {}
 
 BLANK_ENVIRONMENT_DICT = {
-    "worksheet": lambda x: None,
-    "netcdf": lambda x: None,
-    "manual": lambda x: None,
+    "worksheet": lambda x: MockEnvironmentMetadata(),
+    "netcdf": lambda x: MockEnvironmentMetadata(),
+    "manual": lambda x: MockEnvironmentMetadata(),
 }
 TIME_DICT = {
     "worksheet": worksheet_time_metadata,
@@ -175,9 +180,9 @@ STREAM_DICT[StreamType.TEST_LEVEL] = stream_metadata_test_level
 # Event list
 EVENT_DICT = {}
 BLANK_EVENT_DICT = {
-    "worksheet": lambda x: None,
-    "netcdf": lambda x: None,
-    "manual": lambda x: None,
+    "worksheet": lambda x: [],
+    "netcdf": lambda x: [],
+    "manual": lambda x: [],
 }
 TIME_EVENT_DICT = {
     "manual": time_event_list,
@@ -219,7 +224,7 @@ EVENT_DICT[EnvironmentType.SKELETON] = SKELETON_EVENT_DICT
 
 # Instructions
 INSTRUCTIONS_DICT = {}
-INSTRUCTIONS_DICT[EnvironmentType.NONE] = lambda: None
+INSTRUCTIONS_DICT[EnvironmentType.NONE] = lambda: MockEnvironmentInstructions()
 INSTRUCTIONS_DICT[EnvironmentType.TIME] = time_instructions
 INSTRUCTIONS_DICT[EnvironmentType.MODAL] = modal_instructions
 INSTRUCTIONS_DICT[EnvironmentType.SINE] = sine_instructions

@@ -1,7 +1,6 @@
 from rattlesnake.environment.environment_utilities import EnvironmentType
 
 UNIMPLEMENTED_ENVIRONMENT = [
-    EnvironmentType.NONE,
     EnvironmentType.READ,
     EnvironmentType.SYSID_SKELETON,
 ]
@@ -17,6 +16,18 @@ for environment_type in EnvironmentType:
         continue
 
     match environment_type:
+        case EnvironmentType.NONE:
+            from rattlesnake.testing.mock_environment_new import (
+                MockEnvironmentCommands,
+                MockEnvironmentMetadata,
+                MockEnvironment,
+                mock_environment_process,
+            )
+
+            ENVIRONMENT_COMMANDS[EnvironmentType.NONE] = MockEnvironmentCommands
+            ENVIRONMENT_METADATA[EnvironmentType.NONE] = MockEnvironmentMetadata
+            ENVIRONMENT_CLASS[EnvironmentType.NONE] = MockEnvironment
+            ENVIRONMENT_PROCESS[EnvironmentType.NONE] = mock_environment_process
         case EnvironmentType.TIME:
             from rattlesnake.environment.time_environment import (
                 TimeCommands,

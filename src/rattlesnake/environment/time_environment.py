@@ -270,11 +270,6 @@ class TimeMetadata(EnvironmentMetadata):
     def create_blank_worksheet_template(cls, worksheet):
         super().create_blank_worksheet_template(worksheet)
         worksheet.cell(1, 2, "Time")
-        worksheet.cell(
-            1,
-            4,
-            "Note: Fill in second row with information requested by hash marks (#).",
-        )
         worksheet.cell(2, 1, "Signal File")
         worksheet.cell(
             2, 3, "# Path to the file that contains the time signal that will be output"

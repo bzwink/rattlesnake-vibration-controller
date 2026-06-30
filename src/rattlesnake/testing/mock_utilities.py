@@ -1,9 +1,12 @@
+import inspect
+from unittest import mock
+
+import threading
+import queue as thqueue
+
 from rattlesnake.hardware.hardware_utilities import Channel
 from rattlesnake.utilities import QueueContainer, EventContainer, VerboseMessageQueue
 import multiprocessing as mp
-import threading
-import queue as thqueue
-from unittest import mock
 
 MAX_ENVIRONMENTS = 4
 
@@ -154,6 +157,36 @@ def mock_event_container(use_thread):
 
 def fake_time():
     return "Datetime"
+
+
+def instantiate_with_mocks(cls, **overrides):
+    """
+    Instantiate `cls` by passing a MagicMock for every constructor argument,
+    except arguments explicitly provided in `overrides`.
+    """
+    signature = inspect.signature(cls)
+
+    positional_args = []
+    keyword_args = {}
+
+    for name, parameter in signature.parameters.items():
+        if name == "self":
+            continue
+
+        if parameter.kind == inspect.Parameter.VAR_POSITIONAL:
+            continue
+
+        if parameter.kind == inspect.Parameter.VAR_KEYWORD:
+            continue
+
+        value = overrides.get(name, mock.MagicMock(name=name))
+
+        if parameter.kind == inspect.Parameter.POSITIONAL_ONLY:
+            positional_args.append(value)
+        else:
+            keyword_args[name] = value
+
+    return cls(*positional_args, **keyword_args)
 
 
 def clear_verbose_queue(q, task_name, verbose_array):

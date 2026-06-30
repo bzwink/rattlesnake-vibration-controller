@@ -15,12 +15,11 @@ from .mock_utilities import mock_channel_list_bools
 from unittest import mock
 from enum import Enum
 
-# IMPLEMENTED_ENVIRONMENT = [
-#     environment
-#     for environment in EnvironmentType
-#     if environment not in UNIMPLEMENTED_ENVIRONMENT
-# ]
-IMPLEMENTED_ENVIRONMENT = [EnvironmentType.NONE, EnvironmentType.TIME]
+IMPLEMENTED_ENVIRONMENT = [
+    environment
+    for environment in EnvironmentType
+    if environment not in UNIMPLEMENTED_ENVIRONMENT
+]
 
 
 def environment_metadata_dict():

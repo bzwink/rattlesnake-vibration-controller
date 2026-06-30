@@ -595,11 +595,6 @@ class SineMetadata(SysIdEnvironmentMetadata):
     def create_blank_worksheet_template(cls, worksheet):
         super().create_blank_worksheet_template(worksheet)
         worksheet.cell(1, 2, "Sine")
-        worksheet.cell(
-            1,
-            4,
-            "Note: Replace cells with hash marks (#) to provide the requested parameters.",
-        )
         worksheet.cell(2, 1, "Test Ramp Time")
         worksheet.cell(
             2, 3, "# Time for the test to ramp up or down when starting or stopping"

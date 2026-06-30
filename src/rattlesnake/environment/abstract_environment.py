@@ -243,6 +243,11 @@ class EnvironmentMetadata(ABC):
         """
         worksheet.cell(1, 1, "Control Type")
         worksheet.cell(1, 3, "v4.0")
+        worksheet.cell(
+            1,
+            4,
+            "Note: Fill in second row with information requested by hash marks (#).",
+        )
 
     @abstractmethod
     def save_metadata_to_worksheet(

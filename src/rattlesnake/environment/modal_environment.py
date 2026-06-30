@@ -262,7 +262,9 @@ class ModalMetadata(EnvironmentMetadata):
                 output_oversample=self.output_oversample,
             )
         else:
-            raise ValueError(f"Invalid Signal Type {self.signal_generator_type}")
+            signal_generator = None
+            print(f"Invalid Signal Type {self.signal_generator_type}")
+            # raise ValueError(f"Invalid Signal Type {self.signal_generator_type}")
         return signal_generator
 
     @property
