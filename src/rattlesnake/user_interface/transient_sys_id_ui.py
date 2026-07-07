@@ -466,6 +466,9 @@ class TransientUI(SysIdEnvironmentUI):
                 self.definition_widget.control_function_input.setCurrentIndex(
                     func_index
                 )
+            self.definition_widget.control_function_generator_selector.setCurrentIndex(
+                metadata.control_python_function_type
+            )
 
             # Set the generator type selector
             self.definition_widget.control_function_generator_selector.setCurrentIndex(
