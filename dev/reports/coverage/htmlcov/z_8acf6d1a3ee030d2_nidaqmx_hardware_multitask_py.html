@@ -65,7 +65,7 @@
             <a id="nextFileLink" class="nav" href="z_8acf6d1a3ee030d2_sdynpy_frf_virtual_hardware_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.4">coverage.py v7.13.4</a>,
-            created at 2026-06-26 16:26 +0000
+            created at 2026-07-11 04:03 +0000
         </p>
         <aside class="hidden">
             <button type="button" class="button_next_chunk" data-shortcut="j"></button>
@@ -931,7 +931,7 @@
     <p class="mis show_mis"><span class="n"><a id="t849" href="#t849">849</a></span><span class="t">        <span class="nam">task_names</span> <span class="op">=</span> <span class="nam">set</span><span class="op">(</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t850" href="#t850">850</a></span><span class="t">        <span class="nam">extra_task_index</span> <span class="op">=</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t851" href="#t851">851</a></span><span class="t">        <span class="key">for</span> <span class="nam">channel</span> <span class="key">in</span> <span class="nam">channel_data</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t852" href="#t852">852</a></span><span class="t">            <span class="key">if</span> <span class="key">not</span> <span class="op">(</span><span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span> <span class="key">is</span> <span class="key">None</span><span class="op">)</span> <span class="key">and</span> <span class="key">not</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t852" href="#t852">852</a></span><span class="t">            <span class="key">if</span> <span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">and</span> <span class="key">not</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t853" href="#t853">853</a></span><span class="t">                <span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span><span class="op">.</span><span class="nam">strip</span><span class="op">(</span><span class="op">)</span> <span class="op">==</span> <span class="str">""</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t854" href="#t854">854</a></span><span class="t">            <span class="op">)</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t855" href="#t855">855</a></span><span class="t">                <span class="nam">device_name</span> <span class="op">=</span> <span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span>&nbsp;</span><span class="r"></span></p>
@@ -957,7 +957,7 @@
     <p class="mis show_mis"><span class="n"><a id="t875" href="#t875">875</a></span><span class="t">        <span class="nam">index</span> <span class="op">=</span> <span class="num">0</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t876" href="#t876">876</a></span><span class="t">        <span class="nam">extra_task_index</span> <span class="op">=</span> <span class="num">1</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis show_mis"><span class="n"><a id="t877" href="#t877">877</a></span><span class="t">        <span class="key">for</span> <span class="nam">channel</span> <span class="key">in</span> <span class="nam">channel_data</span><span class="op">:</span>&nbsp;</span><span class="r"></span></p>
-    <p class="mis show_mis"><span class="n"><a id="t878" href="#t878">878</a></span><span class="t">            <span class="key">if</span> <span class="key">not</span> <span class="op">(</span><span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span> <span class="key">is</span> <span class="key">None</span><span class="op">)</span> <span class="key">and</span> <span class="key">not</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
+    <p class="mis show_mis"><span class="n"><a id="t878" href="#t878">878</a></span><span class="t">            <span class="key">if</span> <span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span> <span class="key">is</span> <span class="key">not</span> <span class="key">None</span> <span class="key">and</span> <span class="key">not</span> <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t879" href="#t879">879</a></span><span class="t">                <span class="op">(</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t880" href="#t880">880</a></span><span class="t">                    <span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span><span class="op">.</span><span class="nam">startswith</span><span class="op">(</span><span class="str">"#"</span><span class="op">)</span>&nbsp;</span><span class="r"></span></p>
     <p class="mis mis2 show_mis"><span class="n"><a id="t881" href="#t881">881</a></span><span class="t">                    <span class="key">or</span> <span class="nam">channel</span><span class="op">.</span><span class="nam">feedback_device</span><span class="op">.</span><span class="nam">strip</span><span class="op">(</span><span class="op">)</span> <span class="op">==</span> <span class="str">""</span>&nbsp;</span><span class="r"></span></p>
@@ -1163,7 +1163,7 @@
             <a class="nav" href="z_8acf6d1a3ee030d2_sdynpy_frf_virtual_hardware_py.html">&#xbb; next</a>
             &nbsp; &nbsp; &nbsp;
             <a class="nav" href="https://coverage.readthedocs.io/en/7.13.4">coverage.py v7.13.4</a>,
-            created at 2026-06-26 16:26 +0000
+            created at 2026-07-11 04:03 +0000
         </p>
     </div>
 </footer>

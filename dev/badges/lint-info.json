@@ -1,8 +1,8 @@
 {
-  "score": "8.93",
+  "score": "9.37",
   "color": "brightgreen",
-  "pages_url": "https://sandialabs.github.io/rattlesnake-vibration-controller/dev/reports/lint/",
-  "workflow_url": "https://github.com/sandialabs/rattlesnake-vibration-controller/actions/workflows/ci.yml",
-  "run_id": "28250867533",
-  "timestamp": "2026-06-26T16:28:59Z"
+  "pages_url": "https://bzwink.github.io/rattlesnake-vibration-controller/dev/reports/lint/",
+  "workflow_url": "https://github.com/bzwink/rattlesnake-vibration-controller/actions/workflows/ci.yml",
+  "run_id": "29138817220",
+  "timestamp": "2026-07-11T04:06:50Z"
 }
